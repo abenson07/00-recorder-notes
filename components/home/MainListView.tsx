@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
+import { GlobalSearchSection } from "@/components/home/GlobalSearchSection";
 import { ProjectList } from "@/components/projects/ProjectList";
 import { createPlaceholderProject, fetchProjects } from "@/lib/api/projects";
 import { RecordButton } from "@/components/record/RecordButton";
@@ -16,6 +17,7 @@ export function MainListView() {
   const [recordProjectId, setRecordProjectId] = useState<string | null>(null);
   const [recordSessionError, setRecordSessionError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -70,6 +72,8 @@ export function MainListView() {
           </p>
         </header>
 
+        <GlobalSearchSection onSearchActiveChange={setSearchActive} />
+
         {projects.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center py-16">
             <EmptyState
@@ -83,7 +87,7 @@ export function MainListView() {
               }
             />
           </div>
-        ) : (
+        ) : searchActive ? null : (
           <ProjectList projects={projects} />
         )}
       </div>

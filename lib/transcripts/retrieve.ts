@@ -6,6 +6,7 @@ export type RetrievedChunk = {
   metadata: Record<string, unknown> | null;
   similarity: number;
   projectId?: string;
+  recordingId?: string | null;
 };
 
 type MatchRow = {
@@ -14,6 +15,7 @@ type MatchRow = {
   metadata: unknown;
   similarity: number;
   project_id?: string;
+  recording_id?: string | null;
 };
 
 function rowToChunk(row: MatchRow): RetrievedChunk {
@@ -28,6 +30,7 @@ function rowToChunk(row: MatchRow): RetrievedChunk {
         : null,
     similarity: row.similarity,
     projectId: row.project_id,
+    recordingId: row.recording_id ?? null,
   };
 }
 
