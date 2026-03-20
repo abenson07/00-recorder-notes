@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 import { createSignedAudioReadUrl } from "@/lib/supabase/storage";
 
 const recordingIdSchema = z.uuid();
+const projectIdSchema = z.uuid();
 
 const expiresSchema = z.coerce.number().int().min(60).max(86400).optional();
 
@@ -23,11 +24,21 @@ export async function GET(
   const expParse = expiresSchema.safeParse(url.searchParams.get("expiresIn") ?? undefined);
   const expiresIn = expParse.success ? (expParse.data ?? 3600) : 3600;
 
+  const rawProjectId = url.searchParams.get("projectId");
+  let expectedProjectId: string | undefined;
+  if (rawProjectId) {
+    const p = projectIdSchema.safeParse(rawProjectId);
+    if (!p.success) {
+      return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
+    }
+    expectedProjectId = p.data;
+  }
+
   try {
     const supabase = createServiceRoleClient();
     const { data: recording, error } = await supabase
       .from("note_recordings")
-      .select("id, audio_storage_path")
+      .select("id, audio_storage_path, project_id")
       .eq("id", recordingId)
       .maybeSingle();
 
@@ -37,6 +48,10 @@ export async function GET(
     }
 
     if (!recording) {
+      return NextResponse.json({ error: "Recording not found" }, { status: 404 });
+    }
+
+    if (expectedProjectId && recording.project_id !== expectedProjectId) {
       return NextResponse.json({ error: "Recording not found" }, { status: 404 });
     }
 

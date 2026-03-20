@@ -1,4 +1,4 @@
-import type { Project } from "@/lib/types";
+import type { Project, RecordingListItem } from "@/lib/types";
 
 type ProjectsListApiRow = {
   id: string;
@@ -46,4 +46,18 @@ export async function createPlaceholderProject(): Promise<string> {
     throw new Error(err);
   }
   return String((data as { id: string }).id);
+}
+
+export async function fetchProjectRecordingsClient(
+  projectId: string,
+): Promise<RecordingListItem[]> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/recordings`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) {
+    throw new Error("Could not load recordings");
+  }
+  const data = (await res.json()) as { recordings?: RecordingListItem[] };
+  return Array.isArray(data.recordings) ? data.recordings : [];
 }

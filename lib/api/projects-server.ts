@@ -1,5 +1,5 @@
 import { getAppOrigin } from "@/lib/server-origin";
-import type { Project, RecordingsSummary } from "@/lib/types";
+import type { Project, RecordingListItem, RecordingsSummary } from "@/lib/types";
 
 export async function fetchProject(projectId: string): Promise<Project | null> {
   const origin = await getAppOrigin();
@@ -33,4 +33,21 @@ export async function fetchRecordingsSummary(
   }
 
   return (await res.json()) as RecordingsSummary;
+}
+
+export async function fetchProjectRecordings(
+  projectId: string,
+): Promise<RecordingListItem[]> {
+  const origin = await getAppOrigin();
+  const res = await fetch(`${origin}/api/projects/${projectId}/recordings`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    console.error("[fetchProjectRecordings]", res.status);
+    return [];
+  }
+
+  const data = (await res.json()) as { recordings?: RecordingListItem[] };
+  return Array.isArray(data.recordings) ? data.recordings : [];
 }

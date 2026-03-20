@@ -13,6 +13,79 @@ const postBodySchema = z.object({
 
 const DEFAULT_MIME = "audio/webm";
 
+const PREVIEW_MAX = 160;
+
+function previewFromRecording(row: {
+  output_summary: string | null;
+  transcript_text: string | null;
+}): string | null {
+  const raw =
+    (row.output_summary?.trim() && row.output_summary) ||
+    (row.transcript_text?.trim() && row.transcript_text) ||
+    "";
+  if (!raw) {
+    return null;
+  }
+  const oneLine = raw.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= PREVIEW_MAX) {
+    return oneLine;
+  }
+  return `${oneLine.slice(0, PREVIEW_MAX - 1)}…`;
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId: rawProjectId } = await context.params;
+  const idParse = projectIdSchema.safeParse(rawProjectId);
+  if (!idParse.success) {
+    return NextResponse.json({ error: "Invalid project id" }, { status: 404 });
+  }
+  const projectId = idParse.data;
+
+  try {
+    const supabase = createServiceRoleClient();
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (projectError) {
+      console.error("[GET .../recordings] project", projectError);
+      return NextResponse.json({ error: "Failed to load project" }, { status: 500 });
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const { data: rows, error } = await supabase
+      .from("note_recordings")
+      .select("id, status, created_at, transcript_text, output_summary")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[GET .../recordings]", error);
+      return NextResponse.json({ error: "Failed to load recordings" }, { status: 500 });
+    }
+
+    const recordings = (rows ?? []).map((r) => ({
+      id: r.id,
+      status: r.status,
+      created_at: r.created_at,
+      preview: previewFromRecording(r),
+    }));
+
+    return NextResponse.json({ recordings });
+  } catch (e) {
+    console.error("[GET .../recordings]", e);
+    return NextResponse.json({ error: "Failed to load recordings" }, { status: 500 });
+  }
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ projectId: string }> },

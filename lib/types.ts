@@ -41,3 +41,11 @@ export interface RecordingsSummary {
   transcribed: number;
   pending: number;
 }
+
+/** List row from GET /api/projects/:id/recordings */
+export interface RecordingListItem {
+  id: string;
+  status: RecordingStatus;
+  created_at: string;
+  preview: string | null;
+}
