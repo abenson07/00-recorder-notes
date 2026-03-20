@@ -37,3 +37,8 @@ The app calls **OpenAI’s Speech-to-Text API** from Next.js route handlers (no 
 1. Browser audio recording support varies by device/browser. Start with desktop Chrome/Safari.
 2. Ensure your microphone input works before integrating the UI.
 3. For future Bluetooth/screen-off behavior (mobile web later), verify the target browser permissions and power settings.
+
+### 5) note-005 — pgvector (semantic search + chat grounding)
+1. In the Supabase SQL editor (or `supabase db push` if the project is linked), apply the migration that enables **`vector`**, creates **`transcript_chunks`** / **`transcript_embeddings`**, and adds **`match_project_chunks`** / **`match_global_chunks`**. The file is `supabase/migrations/20250320120300_note005_pgvector_transcript_chunks.sql`.
+2. Chat and retrieval use **OpenAI embeddings** (`text-embedding-3-small`, 1536 dimensions) with the same **`OPENAI_API_KEY`** (and optional **`OPENAI_BASE_URL`**) as transcription.
+3. **Automated retrieval check (note-005 §C):** with `npm run dev` running, run **`npm run smoke:note-005-retrieve`** from the app folder. Optional: **`SMOKE_PROJECT_ID=<uuid>`** to pin a project. This calls **`POST /api/projects/:id/retrieve`** twice and asserts ranked chunks contain expected transcript phrases.

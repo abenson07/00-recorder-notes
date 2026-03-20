@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { postProjectChat } from "@/lib/api/chat";
+import { type ChatSource, postProjectChat } from "@/lib/api/chat";
 
 type Role = "user" | "assistant";
 
@@ -9,6 +9,9 @@ interface ChatMessage {
   id: string;
   role: Role;
   content: string;
+  sources?: ChatSource[];
+  grounded?: boolean;
+  usedTranscriptFallback?: boolean;
 }
 
 export function ChatPanel({ projectId }: { projectId: string }) {
@@ -35,13 +38,17 @@ export function ChatPanel({ projectId }: { projectId: string }) {
     setSending(true);
 
     try {
-      const { reply } = await postProjectChat(projectId, text);
+      const { reply, sources, grounded, usedTranscriptFallback } =
+        await postProjectChat(projectId, text);
       setMessages((m) => [
         ...m,
         {
           id: `a-${Date.now()}`,
           role: "assistant",
           content: reply.trim() || "(Empty reply)",
+          sources,
+          grounded,
+          usedTranscriptFallback,
         },
       ]);
     } catch (err) {
@@ -54,7 +61,8 @@ export function ChatPanel({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-[min(70vh,520px)] flex-col gap-3">
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Answers use the project master transcript only (no vector search yet).
+        Answers are grounded in retrieved transcript excerpts when available; otherwise a
+        truncated project transcript/summary is used.
       </p>
 
       <ul
@@ -79,6 +87,28 @@ export function ChatPanel({ projectId }: { projectId: string }) {
               {msg.role === "user" ? "You" : "Assistant"}
             </span>
             <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+            {msg.role === "assistant" && msg.sources && msg.sources.length > 0 ? (
+              <div className="mt-2 border-t border-zinc-200/80 pt-2 dark:border-zinc-600/60">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Sources
+                </p>
+                <ul className="space-y-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                  {msg.sources.map((s) => (
+                    <li key={s.chunkId} className="leading-snug">
+                      <span className="text-zinc-400 dark:text-zinc-500">
+                        {(s.similarity * 100).toFixed(0)}% match ·{" "}
+                      </span>
+                      {s.preview}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {msg.role === "assistant" && msg.usedTranscriptFallback ? (
+              <p className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-500">
+                No semantic matches — answer used a broad transcript/summary excerpt.
+              </p>
+            ) : null}
           </li>
         ))}
       </ul>

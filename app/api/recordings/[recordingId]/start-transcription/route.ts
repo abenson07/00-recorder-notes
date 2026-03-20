@@ -7,6 +7,7 @@ import {
   transcribeAudio,
 } from "@/lib/openai/transcribe";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
+import { ingestRecordingTranscriptChunks } from "@/lib/transcripts/ingestRecordingChunks";
 
 export const maxDuration = 300;
 
@@ -247,6 +248,19 @@ export async function POST(
     if (recordingUpdateError) {
       console.error("[start-transcription] update recording", recordingUpdateError);
       return NextResponse.json({ error: "Failed to save transcript" }, { status: 500 });
+    }
+
+    try {
+      await ingestRecordingTranscriptChunks({
+        supabase,
+        projectId: recording.project_id,
+        recordingId,
+        transcriptText: text,
+        openaiApiKey: env.OPENAI_API_KEY,
+        openaiBaseUrl: env.OPENAI_BASE_URL,
+      });
+    } catch (ingestErr) {
+      console.error("[start-transcription] chunk ingest", ingestErr);
     }
 
     return NextResponse.json({
