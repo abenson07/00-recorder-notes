@@ -6,6 +6,7 @@ import {
   fetchRecordingsSummary,
 } from "@/lib/api/projects-server";
 import { ProjectDetailClient } from "@/components/projects/ProjectDetailClient";
+import { parseProcessingTemplate } from "@/lib/projects/processingTemplate";
 
 export default async function ProjectDetailPage({
   params,
@@ -22,6 +23,8 @@ export default async function ProjectDetailPage({
   if (!project) {
     notFound();
   }
+
+  const processingTemplate = parseProcessingTemplate(project.processing_template);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -40,6 +43,7 @@ export default async function ProjectDetailPage({
         titleLocked={project.title_locked}
         summary={project.summary}
         masterTranscript={project.master_transcript}
+        processingTemplate={processingTemplate}
         stats={stats}
         initialRecordings={recordings}
       />

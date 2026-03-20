@@ -10,6 +10,12 @@ export type TranscriptionJobStatus =
   | "succeeded"
   | "failed";
 
+/** Stored as JSON on `projects.processing_template`; see `lib/projects/processingTemplate.ts`. */
+export type ProjectProcessingTemplate = {
+  preset: "summary" | "tasks";
+  customInstructions?: string | null;
+};
+
 export interface Project {
   id: string;
   title: string;
@@ -18,6 +24,8 @@ export interface Project {
   title_locked: boolean;
   master_transcript: string;
   summary: string;
+  /** JSON from DB; parse with `parseProcessingTemplate` when needed. */
+  processing_template?: ProjectProcessingTemplate | unknown | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +40,10 @@ export interface Recording {
   transcript_text: string | null;
   transcription_raw: unknown | null;
   output_summary: string | null;
+  /** Tasks template payload, e.g. `{ tasks: [...] }`. */
+  output_summary_json?: unknown | null;
+  /** Raw model output when JSON validation failed. */
+  output_summary_debug?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -48,6 +48,33 @@ export async function createPlaceholderProject(): Promise<string> {
   return String((data as { id: string }).id);
 }
 
+export async function patchProject(
+  projectId: string,
+  patch: {
+    title?: string;
+    description?: string | null;
+    processing_template?: {
+      preset: "summary" | "tasks";
+      customInstructions?: string | null;
+    };
+  },
+): Promise<Project> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const data: unknown = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err =
+      typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error?: unknown }).error)
+        : "Could not update project";
+    throw new Error(err);
+  }
+  return data as Project;
+}
+
 export async function fetchProjectRecordingsClient(
   projectId: string,
 ): Promise<RecordingListItem[]> {

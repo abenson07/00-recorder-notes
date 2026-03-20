@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TabBar } from "@/components/common/TabBar";
 import { AudioPlayer } from "@/components/playback/AudioPlayer";
+import { TaskOutputList } from "@/components/recordings/TaskOutputList";
 import { SearchableTextPane } from "@/components/text/SearchableTextPane";
+import { tasksOutputPayloadSchema } from "@/lib/openai/recordingOutput";
 import {
   fetchRecordingJson,
   postStartTranscription,
@@ -102,6 +104,11 @@ export function RecordingDetailClient({
 
   const recording = q.data ?? initialRecording;
   const recordingStatus = recording.status;
+
+  const tasksPayload = useMemo(() => {
+    const parsed = tasksOutputPayloadSchema.safeParse(recording.output_summary_json);
+    return parsed.success ? parsed.data : null;
+  }, [recording.output_summary_json]);
 
   const summaryPaneBody = useMemo(
     () => outputSummaryBody(recording),
@@ -267,11 +274,29 @@ export function RecordingDetailClient({
         <TabBar tabs={OUTPUT_TABS} activeId={activeTab} onChange={setActiveTab} />
         <div className="min-h-[240px] flex-1 overflow-auto p-4">
           {activeTab === "summary" ? (
-            <SearchableTextPane
-              body={summaryPaneBody}
-              searchQuery={searchQuery}
-              emptyMessage="— No output summary or transcript yet —"
-            />
+            <div className="flex flex-col gap-4">
+              {tasksPayload ? <TaskOutputList payload={tasksPayload} /> : null}
+              {recording.output_summary_debug ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+                  <p className="font-medium text-amber-950 dark:text-amber-100">
+                    Structured output did not validate
+                  </p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-amber-800 dark:text-amber-200">
+                      Raw model output
+                    </summary>
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-amber-950 dark:text-amber-50">
+                      {recording.output_summary_debug}
+                    </pre>
+                  </details>
+                </div>
+              ) : null}
+              <SearchableTextPane
+                body={summaryPaneBody}
+                searchQuery={searchQuery}
+                emptyMessage="— No output summary or transcript yet —"
+              />
+            </div>
           ) : null}
           {activeTab === "transcript" ? (
             <SearchableTextPane

@@ -33,7 +33,7 @@ export async function GET(
     const { data: row, error } = await supabase
       .from("note_recordings")
       .select(
-        "id, project_id, status, audio_storage_path, audio_mime_type, duration_ms, transcript_text, transcription_raw, output_summary, created_at, updated_at",
+        "id, project_id, status, audio_storage_path, audio_mime_type, duration_ms, transcript_text, transcription_raw, output_summary, output_summary_json, output_summary_debug, created_at, updated_at",
       )
       .eq("id", recordingId)
       .maybeSingle();

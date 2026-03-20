@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { applyRecordingProcessingTemplate } from "@/lib/openai/recordingOutput";
 import { refreshProjectSummary } from "@/lib/openai/projectSummary";
 import {
   OPENAI_MAX_AUDIO_BYTES,
   OpenAITranscriptionError,
   transcribeAudio,
 } from "@/lib/openai/transcribe";
+import { parseProcessingTemplate } from "@/lib/projects/processingTemplate";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 import { ingestRecordingTranscriptChunks } from "@/lib/transcripts/ingestRecordingChunks";
 
@@ -188,7 +190,7 @@ export async function POST(
 
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id, master_transcript, summary")
+      .select("id, master_transcript, summary, processing_template")
       .eq("id", recording.project_id)
       .maybeSingle();
 
@@ -204,6 +206,8 @@ export async function POST(
     const block = `\n\n[Recording ${recordingId}]\n${text}\n`;
     const masterTranscript = (project.master_transcript ?? "").trimEnd() + block;
 
+    const template = parseProcessingTemplate(project.processing_template);
+
     let summaryNext = project.summary ?? "";
     try {
       summaryNext = await refreshProjectSummary({
@@ -211,10 +215,33 @@ export async function POST(
         baseUrl: env.OPENAI_BASE_URL,
         previousSummary: project.summary ?? "",
         newTranscriptText: text,
+        templatePreset: template.preset,
+        customInstructions: template.customInstructions,
       });
     } catch (e) {
       console.error("[start-transcription] summary refresh", e);
       summaryNext = project.summary ?? "";
+    }
+
+    let output_summary = "";
+    let output_summary_json: unknown = null;
+    let output_summary_debug: string | null = null;
+    try {
+      const out = await applyRecordingProcessingTemplate({
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_BASE_URL,
+        template,
+        transcriptText: text,
+      });
+      output_summary = out.output_summary;
+      output_summary_json = out.output_summary_json;
+      output_summary_debug = out.output_summary_debug;
+    } catch (e) {
+      console.error("[start-transcription] recording template output", e);
+      const clip = text.trim().slice(0, 500);
+      output_summary = `Could not generate template output (${e instanceof Error ? e.message : "error"}). Transcript preview:\n\n${clip}${text.trim().length > 500 ? "…" : ""}`;
+      output_summary_json = null;
+      output_summary_debug = null;
     }
 
     const { error: projectUpdateError } = await supabase
@@ -241,6 +268,9 @@ export async function POST(
         status: "transcribed",
         transcript_text: text,
         transcription_raw: raw,
+        output_summary,
+        output_summary_json,
+        output_summary_debug,
         updated_at: new Date().toISOString(),
       })
       .eq("id", recordingId);

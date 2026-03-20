@@ -8,10 +8,20 @@ const patchBodySchema = z
   .object({
     title: z.string().max(2000).optional(),
     description: z.string().max(8000).nullable().optional(),
+    processing_template: z
+      .object({
+        preset: z.enum(["summary", "tasks"]),
+        customInstructions: z.string().max(8000).nullable().optional(),
+      })
+      .optional(),
   })
-  .refine((v) => v.title !== undefined || v.description !== undefined, {
-    message: "Provide title and/or description",
-  });
+  .refine(
+    (v) =>
+      v.title !== undefined ||
+      v.description !== undefined ||
+      v.processing_template !== undefined,
+    { message: "Provide at least one field to update" },
+  );
 
 export async function GET(
   _request: Request,
@@ -29,7 +39,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("projects")
       .select(
-        "id, title, description, direction_files, title_locked, master_transcript, summary, created_at, updated_at",
+        "id, title, description, direction_files, title_locked, master_transcript, summary, processing_template, created_at, updated_at",
       )
       .eq("id", projectId)
       .maybeSingle();
@@ -110,13 +120,20 @@ export async function PATCH(
     if (parsed.data.description !== undefined) {
       patch.description = parsed.data.description;
     }
+    if (parsed.data.processing_template !== undefined) {
+      patch.processing_template = {
+        preset: parsed.data.processing_template.preset,
+        customInstructions:
+          parsed.data.processing_template.customInstructions?.trim() || null,
+      };
+    }
 
     const { data, error } = await supabase
       .from("projects")
       .update(patch)
       .eq("id", projectId)
       .select(
-        "id, title, description, direction_files, title_locked, master_transcript, summary, created_at, updated_at",
+        "id, title, description, direction_files, title_locked, master_transcript, summary, processing_template, created_at, updated_at",
       )
       .single();
 

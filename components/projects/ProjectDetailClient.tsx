@@ -7,9 +7,11 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ProjectTabs } from "@/components/projects/ProjectTabs";
 import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
+import { ProjectTemplatePanel } from "@/components/projects/ProjectTemplatePanel";
 import { RecordingsList } from "@/components/projects/RecordingsList";
 import { fetchProjectRecordingsClient } from "@/lib/api/projects";
 import { cn } from "@/lib/cn";
+import type { ProcessingTemplate } from "@/lib/projects/processingTemplate";
 import type { RecordingListItem, RecordingsSummary } from "@/lib/types";
 
 type DockMode = "overview" | "chat" | "recordings";
@@ -64,6 +66,7 @@ export function ProjectDetailClient({
   titleLocked,
   summary,
   masterTranscript,
+  processingTemplate,
   stats,
   initialRecordings,
 }: {
@@ -73,6 +76,7 @@ export function ProjectDetailClient({
   titleLocked: boolean;
   summary: string;
   masterTranscript: string;
+  processingTemplate: ProcessingTemplate;
   stats: RecordingsSummary;
   initialRecordings: RecordingListItem[];
 }) {
@@ -115,7 +119,12 @@ export function ProjectDetailClient({
         </header>
 
         {dock === "overview" ? (
-          <ProjectTabs masterTranscript={masterTranscript} summary={summary} />
+          <div className="flex flex-col gap-6">
+            {!titleLocked ? (
+              <ProjectTemplatePanel projectId={projectId} initial={processingTemplate} />
+            ) : null}
+            <ProjectTabs masterTranscript={masterTranscript} summary={summary} />
+          </div>
         ) : null}
 
         {dock === "chat" ? (

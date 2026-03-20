@@ -1,19 +1,42 @@
 import { OpenAITranscriptionError } from "@/lib/openai/transcribe";
+import type { TemplatePreset } from "@/lib/projects/processingTemplate";
+
+function systemPromptForPreset(preset: TemplatePreset): string {
+  if (preset === "tasks") {
+    return (
+      "You maintain a running list of action items for the project (bullets, one task per line or short sub-bullets). " +
+      "When a new spoken-notes transcript arrives, merge any new actionable items; dedupe near-duplicates; keep wording concise. " +
+      "Output only the updated list as plain text—no preamble or title."
+    );
+  }
+  return (
+    "You maintain a concise project outline (short bullets or short paragraphs). When new spoken-notes transcript arrives, merge it into the outline. " +
+    "Preserve important themes from the prior outline. Output only the updated outline text—no preamble or title."
+  );
+}
 
 export async function refreshProjectSummary({
   apiKey,
   baseUrl,
   previousSummary,
   newTranscriptText,
+  templatePreset = "summary",
+  customInstructions,
 }: {
   apiKey: string;
   baseUrl: string;
   previousSummary: string;
   /** Plain transcript for this recording (not the full master transcript). */
   newTranscriptText: string;
+  templatePreset?: TemplatePreset;
+  customInstructions?: string | null;
 }): Promise<string> {
   const trimmedPrev = (previousSummary ?? "").trim();
   const excerpt = newTranscriptText.trim().slice(0, 14_000);
+  const extra =
+    typeof customInstructions === "string" && customInstructions.trim().length > 0
+      ? `\n\nProject direction:\n${customInstructions.trim()}`
+      : "";
 
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
   const body = {
@@ -22,12 +45,11 @@ export async function refreshProjectSummary({
     messages: [
       {
         role: "system" as const,
-        content:
-          "You maintain a concise project outline (short bullets or short paragraphs). When new spoken-notes transcript arrives, merge it into the outline. Preserve important themes from the prior outline. Output only the updated outline text—no preamble or title.",
+        content: systemPromptForPreset(templatePreset),
       },
       {
         role: "user" as const,
-        content: `Previous outline:\n${trimmedPrev || "(none yet)"}\n\nNew transcript:\n${excerpt || "(empty)"}\n\nReturn the refreshed outline.`,
+        content: `Previous ${templatePreset === "tasks" ? "task list" : "outline"}:\n${trimmedPrev || "(none yet)"}\n\nNew transcript:\n${excerpt || "(empty)"}${extra}\n\nReturn the updated ${templatePreset === "tasks" ? "task list" : "outline"}.`,
       },
     ],
   };
