@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { refreshProjectSummary } from "@/lib/openai/projectSummary";
 import {
   OPENAI_MAX_AUDIO_BYTES,
   OpenAITranscriptionError,
@@ -186,7 +187,7 @@ export async function POST(
 
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id, master_transcript")
+      .select("id, master_transcript, summary")
       .eq("id", recording.project_id)
       .maybeSingle();
 
@@ -202,9 +203,26 @@ export async function POST(
     const block = `\n\n[Recording ${recordingId}]\n${text}\n`;
     const masterTranscript = (project.master_transcript ?? "").trimEnd() + block;
 
+    let summaryNext = project.summary ?? "";
+    try {
+      summaryNext = await refreshProjectSummary({
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_BASE_URL,
+        previousSummary: project.summary ?? "",
+        newTranscriptText: text,
+      });
+    } catch (e) {
+      console.error("[start-transcription] summary refresh", e);
+      summaryNext = project.summary ?? "";
+    }
+
     const { error: projectUpdateError } = await supabase
       .from("projects")
-      .update({ master_transcript: masterTranscript, updated_at: new Date().toISOString() })
+      .update({
+        master_transcript: masterTranscript,
+        summary: summaryNext,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", recording.project_id);
 
     if (projectUpdateError) {
