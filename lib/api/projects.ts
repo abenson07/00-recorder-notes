@@ -1,35 +1,49 @@
-import type { Project, RecordingsSummary } from "@/lib/types";
+import type { Project } from "@/lib/types";
 
-function stubProject(projectId: string): Project {
-  const now = new Date().toISOString();
-  return {
-    id: projectId,
-    title: "Stub project (replace with API)",
-    description: "Placeholder until GET /api/projects/:projectId is implemented.",
+type ProjectsListApiRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  updatedAt: string;
+  masterTranscriptPreview: string;
+  recordingsCount: number;
+};
+
+/** Client-only: list projects from `GET /api/projects`. */
+export async function fetchProjects(): Promise<Project[]> {
+  const res = await fetch("/api/projects");
+  if (!res.ok) {
+    throw new Error("Could not load projects");
+  }
+
+  const rows = (await res.json()) as ProjectsListApiRow[];
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title.trim() ? row.title : "Untitled project",
+    description: row.description,
     direction_files: null,
     title_locked: false,
-    master_transcript:
-      "This master transcript is scaffold data. Real content will append here after recordings transcribe.",
-    summary: "Stub summary pane — wire to live `projects.summary` after transcript + summary pipeline.",
-    created_at: now,
-    updated_at: now,
-  };
+    master_transcript: row.masterTranscriptPreview,
+    summary: "",
+    created_at: row.updatedAt,
+    updated_at: row.updatedAt,
+  }));
 }
 
-/** Placeholder list; replace with GET /api/projects when wired up. */
-export async function fetchProjects(): Promise<Project[]> {
-  return [];
-}
-
-/** Placeholder detail — returns a stub for any id so routes are previewable. */
-export async function fetchProject(projectId: string): Promise<Project | null> {
-  return stubProject(projectId);
-}
-
-/** Placeholder summary for project detail header. */
-export async function fetchRecordingsSummary(
-  projectId: string,
-): Promise<RecordingsSummary> {
-  void projectId;
-  return { total: 0, transcribed: 0, pending: 0 };
+/** Create a placeholder project (empty title) before the first save/transcript. */
+export async function createPlaceholderProject(): Promise<string> {
+  const res = await fetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "" }),
+  });
+  const data: unknown = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data !== "object" || data === null || !("id" in data)) {
+    const err =
+      typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error?: unknown }).error)
+        : "Could not create project";
+    throw new Error(err);
+  }
+  return String((data as { id: string }).id);
 }

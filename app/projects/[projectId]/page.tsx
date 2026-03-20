@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchProject, fetchRecordingsSummary } from "@/lib/api/projects";
+import {
+  fetchProject,
+  fetchRecordingsSummary,
+} from "@/lib/api/projects-server";
 import { ProjectTabs } from "@/components/projects/ProjectTabs";
 import { AudioPlayer } from "@/components/playback/AudioPlayer";
+import { ProjectRecordFab } from "@/components/projects/ProjectRecordFab";
 
 export default async function ProjectDetailPage({
   params,
@@ -33,7 +37,7 @@ export default async function ProjectDetailPage({
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {summary.total} recordings · {summary.transcribed} transcribed ·{" "}
-          {summary.pending} in progress (stub counts)
+          {summary.pending} not yet transcribed
         </p>
       </header>
 
@@ -48,15 +52,9 @@ export default async function ProjectDetailPage({
           Latest audio (placeholder)
         </h2>
         <AudioPlayer />
-        <p className="text-sm">
-          <Link
-            href={`/projects/${projectId}/recordings/00000000-0000-4000-8000-000000000002`}
-            className="text-red-600 underline-offset-4 hover:underline dark:text-red-400"
-          >
-            Open sample recording page (stub)
-          </Link>
-        </p>
       </section>
+
+      <ProjectRecordFab projectId={projectId} />
     </div>
   );
 }

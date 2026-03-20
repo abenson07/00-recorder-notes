@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchRecording } from "@/lib/api/recordings";
-import { fetchProject } from "@/lib/api/projects";
+import { fetchProject } from "@/lib/api/projects-server";
 import { AudioPlayer } from "@/components/playback/AudioPlayer";
 import { SearchableTextPane } from "@/components/text/SearchableTextPane";
-import { WaveformRecorder } from "@/components/record/WaveformRecorder";
-import { RecordingTransportControls } from "@/components/record/RecordingTransportControls";
-
 export default async function RecordingDetailPage({
   params,
 }: {
@@ -46,8 +43,10 @@ export default async function RecordingDetailPage({
         </p>
       </header>
 
-      <WaveformRecorder />
-      <RecordingTransportControls />
+      <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+        Audio was uploaded from the recorder. Playback wiring can use signed URLs from the
+        server when you open this page from a completed upload.
+      </p>
 
       <AudioPlayer label="This recording" />
 

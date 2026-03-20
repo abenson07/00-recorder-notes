@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
+import { getServerEnv } from "@/lib/env";
 import { createRecordingSignedUpload, getRecordingObjectPath } from "@/lib/supabase/storage";
 
 const projectIdSchema = z.uuid();
@@ -46,6 +47,7 @@ export async function POST(
   const audioStoragePath = getRecordingObjectPath(recordingId, projectId);
 
   try {
+    const env = getServerEnv();
     const supabase = createServiceRoleClient();
 
     const { data: project, error: projectError } = await supabase
@@ -92,6 +94,7 @@ export async function POST(
       {
         recordingId,
         audioStoragePath,
+        storageBucket: env.SUPABASE_STORAGE_BUCKET_AUDIO,
         signedUpload: {
           signedUrl: signedUpload.signedUrl,
           token: signedUpload.token,
