@@ -1,4 +1,5 @@
--- note-001: projects, recordings, transcription_jobs + RLS (no anon policies)
+-- note-001: projects, note_recordings, transcription_jobs + RLS (no anon policies)
+-- Table name `note_recordings` avoids clashing with an unrelated `public.recordings` table.
 -- Apply via Supabase SQL editor or `supabase db push` when linked.
 
 -- ---------------------------------------------------------------------------
@@ -17,7 +18,7 @@ create table if not exists public.projects (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.recordings (
+create table if not exists public.note_recordings (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references public.projects (id) on delete cascade,
   status text not null,
@@ -29,7 +30,7 @@ create table if not exists public.recordings (
   output_summary text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint recordings_status_check check (
+  constraint note_recordings_status_check check (
     status in (
       'uploaded',
       'transcription_pending',
@@ -41,7 +42,7 @@ create table if not exists public.recordings (
 
 create table if not exists public.transcription_jobs (
   id uuid primary key default gen_random_uuid(),
-  recording_id uuid not null references public.recordings (id) on delete cascade,
+  recording_id uuid not null references public.note_recordings (id) on delete cascade,
   external_job_id text,
   status text not null,
   result_payload jsonb,
@@ -57,8 +58,8 @@ create unique index if not exists transcription_jobs_external_job_id_unique
   on public.transcription_jobs (external_job_id)
   where external_job_id is not null;
 
-create index if not exists recordings_project_id_created_at_desc
-  on public.recordings (project_id, created_at desc);
+create index if not exists note_recordings_project_id_created_at_desc
+  on public.note_recordings (project_id, created_at desc);
 
 create index if not exists transcription_jobs_recording_id
   on public.transcription_jobs (recording_id);
@@ -83,9 +84,9 @@ create trigger projects_set_updated_at
   for each row
   execute procedure public.set_updated_at();
 
-drop trigger if exists recordings_set_updated_at on public.recordings;
-create trigger recordings_set_updated_at
-  before update on public.recordings
+drop trigger if exists note_recordings_set_updated_at on public.note_recordings;
+create trigger note_recordings_set_updated_at
+  before update on public.note_recordings
   for each row
   execute procedure public.set_updated_at();
 
@@ -101,8 +102,18 @@ create trigger transcription_jobs_set_updated_at
 -- ---------------------------------------------------------------------------
 
 alter table public.projects enable row level security;
-alter table public.recordings enable row level security;
+alter table public.note_recordings enable row level security;
 alter table public.transcription_jobs enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- PostgREST: service_role must have table privileges or API calls return 42501.
+-- ---------------------------------------------------------------------------
+
+grant usage on schema public to service_role;
+
+grant select, insert, update, delete on table public.projects to service_role;
+grant select, insert, update, delete on table public.note_recordings to service_role;
+grant select, insert, update, delete on table public.transcription_jobs to service_role;
 
 -- Storage: keep bucket private in Dashboard; do not add public read policies.
 -- Signed upload/read URLs are created with the service role from Next.js.

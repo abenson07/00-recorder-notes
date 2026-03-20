@@ -26,7 +26,7 @@ export async function GET(
   try {
     const supabase = createServiceRoleClient();
     const { data: recording, error } = await supabase
-      .from("recordings")
+      .from("note_recordings")
       .select("id, audio_storage_path")
       .eq("id", recordingId)
       .maybeSingle();

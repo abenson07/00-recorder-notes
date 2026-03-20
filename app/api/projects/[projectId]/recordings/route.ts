@@ -63,7 +63,7 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const { error: insertError } = await supabase.from("recordings").insert({
+    const { error: insertError } = await supabase.from("note_recordings").insert({
       id: recordingId,
       project_id: projectId,
       status: "uploaded",
@@ -81,7 +81,7 @@ export async function POST(
       signedUpload = await createRecordingSignedUpload(recordingId, projectId);
     } catch (e) {
       console.error("[POST .../recordings] signed upload", e);
-      await supabase.from("recordings").delete().eq("id", recordingId);
+      await supabase.from("note_recordings").delete().eq("id", recordingId);
       return NextResponse.json(
         { error: "Could not prepare storage upload for recording" },
         { status: 500 },

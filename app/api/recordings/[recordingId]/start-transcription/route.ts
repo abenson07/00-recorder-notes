@@ -39,7 +39,7 @@ export async function POST(
   const bucket = env.SUPABASE_STORAGE_BUCKET_AUDIO;
 
   const { data: recording, error: fetchError } = await supabase
-    .from("recordings")
+    .from("note_recordings")
     .select(
       "id, project_id, status, audio_storage_path, audio_mime_type, transcript_text",
     )
@@ -95,7 +95,7 @@ export async function POST(
 
   const now = new Date().toISOString();
   const { data: claimed, error: pendingErr } = await supabase
-    .from("recordings")
+    .from("note_recordings")
     .update({ status: "transcription_pending", updated_at: now })
     .eq("id", recordingId)
     .in("status", ["uploaded", "failed"])
@@ -108,7 +108,7 @@ export async function POST(
 
   if (!claimed?.length) {
     const { data: again } = await supabase
-      .from("recordings")
+      .from("note_recordings")
       .select("id, status, transcript_text")
       .eq("id", recordingId)
       .maybeSingle();
@@ -137,7 +137,7 @@ export async function POST(
   if (downloadError || !storageBlob) {
     console.error("[start-transcription] storage download", downloadError);
     await supabase
-      .from("recordings")
+      .from("note_recordings")
       .update({ status: "failed", updated_at: new Date().toISOString() })
       .eq("id", recordingId);
     return NextResponse.json(
@@ -149,7 +149,7 @@ export async function POST(
   const byteSize = storageBlob.size;
   if (byteSize > OPENAI_MAX_AUDIO_BYTES) {
     await supabase
-      .from("recordings")
+      .from("note_recordings")
       .update({
         status: "failed",
         updated_at: new Date().toISOString(),
@@ -193,7 +193,7 @@ export async function POST(
     if (projectError || !project) {
       console.error("[start-transcription] load project", projectError);
       await supabase
-        .from("recordings")
+        .from("note_recordings")
         .update({ status: "failed", updated_at: new Date().toISOString() })
         .eq("id", recordingId);
       return NextResponse.json({ error: "Project not found" }, { status: 500 });
@@ -210,14 +210,14 @@ export async function POST(
     if (projectUpdateError) {
       console.error("[start-transcription] update project", projectUpdateError);
       await supabase
-        .from("recordings")
+        .from("note_recordings")
         .update({ status: "failed", updated_at: new Date().toISOString() })
         .eq("id", recordingId);
       return NextResponse.json({ error: "Failed to update project transcript" }, { status: 500 });
     }
 
     const { error: recordingUpdateError } = await supabase
-      .from("recordings")
+      .from("note_recordings")
       .update({
         status: "transcribed",
         transcript_text: text,
@@ -240,7 +240,7 @@ export async function POST(
   } catch (e) {
     if (e instanceof OpenAITranscriptionError) {
       await supabase
-        .from("recordings")
+        .from("note_recordings")
         .update({
           status: "failed",
           updated_at: new Date().toISOString(),
@@ -261,7 +261,7 @@ export async function POST(
 
     console.error("[start-transcription]", e);
     await supabase
-      .from("recordings")
+      .from("note_recordings")
       .update({ status: "failed", updated_at: new Date().toISOString() })
       .eq("id", recordingId);
     return NextResponse.json({ error: "Transcription failed" }, { status: 500 });

@@ -15,11 +15,11 @@ type ProjectListRow = {
   description: string | null;
   updated_at: string;
   master_transcript: string;
-  recordings: { count: number }[] | null;
+  note_recordings: { count: number }[] | null;
 };
 
 function recordingsCountFromRow(row: ProjectListRow): number {
-  const first = row.recordings?.[0];
+  const first = row.note_recordings?.[0];
   return typeof first?.count === "number" ? first.count : 0;
 }
 
@@ -35,7 +35,7 @@ export async function GET() {
         description,
         updated_at,
         master_transcript,
-        recordings (count)
+        note_recordings (count)
       `,
       )
       .order("updated_at", { ascending: false });

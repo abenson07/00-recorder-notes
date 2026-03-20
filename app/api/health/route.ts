@@ -24,8 +24,20 @@ export async function GET() {
     const { error } = await supabase.from("projects").select("id").limit(1);
     if (error) {
       console.error("[health] supabase", error);
+      const code = error.code ?? "UNKNOWN";
+      const isGrant =
+        code === "42501" ||
+        (typeof error.message === "string" &&
+          error.message.includes("permission denied for table"));
       return NextResponse.json(
-        { ok: false, supabase: "unreachable", code: error.code ?? "UNKNOWN" },
+        {
+          ok: false,
+          supabase: isGrant ? "missing_api_grants" : "unreachable",
+          code,
+          hint: isGrant
+            ? "Run supabase/migrations/20250320120200_note001_postgrest_grants.sql in the SQL Editor (service_role needs SELECT/INSERT/UPDATE/DELETE on app tables)."
+            : undefined,
+        },
         { status: 503 },
       );
     }
