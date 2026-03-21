@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { patchProject } from "@/lib/api/projects";
 import type { ProcessingTemplate, TemplatePreset } from "@/lib/projects/processingTemplate";
 
@@ -20,11 +20,6 @@ export function ProjectTemplatePanel({
     initial.customInstructions ?? "",
   );
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setPreset(initial.preset);
-    setCustomInstructions(initial.customInstructions ?? "");
-  }, [initial.preset, initial.customInstructions]);
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>

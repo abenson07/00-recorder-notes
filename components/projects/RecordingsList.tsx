@@ -23,10 +23,13 @@ function formatCreatedAt(iso: string): string {
 export function RecordingsList({
   projectId,
   items,
+  appBasePath = "",
 }: {
   projectId: string;
   items: RecordingListItem[];
+  appBasePath?: string;
 }) {
+  const base = appBasePath.replace(/\/$/, "");
   if (items.length === 0) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -40,7 +43,7 @@ export function RecordingsList({
       {items.map((r) => (
         <li key={r.id}>
           <Link
-            href={`/projects/${projectId}/recordings/${r.id}`}
+            href={`${base}/projects/${projectId}/recordings/${r.id}`}
             className="block py-4 transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40"
           >
             <div className="flex flex-wrap items-center gap-2">
