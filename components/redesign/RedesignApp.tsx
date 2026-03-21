@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import Image, { type StaticImageData } from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -192,18 +191,18 @@ export function RedesignApp() {
       ? recordings.find((r) => r.id === ui.recordingId)
       : undefined;
 
+  const showProjectsSheet =
+    ui.view === "projects" && !projectsQuery.isLoading;
+  const showRecordingsSheet =
+    ui.view === "project" &&
+    ui.projectDetail === "recordings" &&
+    project != null;
+  /** Middle sheet visible — cover is the smaller top region */
+  const coverCollapsed = showProjectsSheet || showRecordingsSheet;
+
   return (
     <div className="dark relative flex min-h-dvh min-h-full flex-1 flex-col bg-[#07080c] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
-
-      <header className="relative z-10 flex items-center justify-end gap-3 px-4 pt-3 pb-1">
-        <Link
-          href="/legacy"
-          className="pointer-events-auto text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
-        >
-          Classic UI
-        </Link>
-      </header>
 
       {recordSessionError ? (
         <div className="relative z-10 mx-auto w-full max-w-lg px-4">
@@ -217,16 +216,27 @@ export function RedesignApp() {
       ) : null}
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 pb-32 pt-2">
-        {/* Top: cover — grows to fill space above optional middle + fixed bottom bar */}
-        <section className="flex min-h-0 flex-1 flex-col">
+        {/* Top: cover — full height when alone; hugs content (min 250px) when middle sheet is visible */}
+        <section
+          className={cn(
+            "flex flex-col",
+            coverCollapsed ? "shrink-0" : "min-h-0 flex-1",
+          )}
+        >
           <motion.div
             layout
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
-            className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/70 to-slate-600/25 p-6 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl"
+            className={cn(
+              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-row items-stretch justify-center gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
+              coverCollapsed ? "shrink-0 pt-[72px] pb-10" : "min-h-0 flex-1 py-0",
+            )}
           >
-            <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-black/40 to-transparent" />
-
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            <div
+              className={cn(
+                "relative flex min-w-0 flex-col",
+                coverCollapsed ? "min-h-0 w-full" : "min-h-0 flex-1",
+              )}
+            >
             <AnimatePresence mode="wait">
               {ui.view === "home" ? (
                 <motion.div
@@ -266,7 +276,10 @@ export function RedesignApp() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.25 }}
-                  className="flex min-h-0 flex-1 flex-col gap-2"
+                  className={cn(
+                    "flex flex-col gap-2",
+                    !coverCollapsed && "min-h-0 flex-1",
+                  )}
                 >
                   <p className="text-xs font-medium text-sky-200/70">Welcome back, Alex</p>
                   <h1 className="text-2xl font-semibold text-white">All Projects</h1>
@@ -284,7 +297,10 @@ export function RedesignApp() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.22 }}
-                  className="flex min-h-0 flex-1 flex-col gap-3"
+                  className={cn(
+                    "flex flex-col gap-3",
+                    !coverCollapsed && "min-h-0 flex-1",
+                  )}
                 >
                   {ui.projectDetail === "default" ? (
                     <div className="flex gap-2 border-b border-white/10 pb-2">
@@ -352,7 +368,13 @@ export function RedesignApp() {
                   ) : null}
 
                   {ui.projectDetail === "recordings" ? (
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div
+                      className={cn(
+                        coverCollapsed
+                          ? "flex flex-col"
+                          : "min-h-0 flex-1 overflow-y-auto",
+                      )}
+                    >
                       <p className="mb-2 line-clamp-3 text-sm leading-relaxed text-slate-300">
                         {project.summary?.trim()?.slice(0, 220)}
                         {(project.summary?.length ?? 0) > 220 ? "…" : ""}
@@ -437,7 +459,7 @@ export function RedesignApp() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.3 }}
-            className="mt-4 flex max-h-[40vh] min-h-0 shrink-0 flex-col gap-0 overflow-y-auto rounded-2xl"
+            className="mt-4 flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto rounded-2xl"
           >
             {projects.map((p: Project) => (
               <li key={p.id}>
@@ -479,7 +501,7 @@ export function RedesignApp() {
           <motion.ul
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex max-h-[42vh] min-h-0 shrink-0 flex-col overflow-y-auto rounded-2xl"
+            className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl"
           >
             {recordings.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-slate-500">No recordings yet</li>
