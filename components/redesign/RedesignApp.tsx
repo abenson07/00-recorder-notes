@@ -56,7 +56,7 @@ const PROJECTS_SHEET_STATE: RedesignUiState = {
 
 /** Bottom-bar FAB styling in redesign (overrides RecordButton defaults). */
 const REDESIGN_RECORD_FAB_CLASS =
-  "bg-[#F9FBFA]/20 hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
+  "bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
 function SvgIcon({
   src,

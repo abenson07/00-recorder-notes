@@ -25,7 +25,7 @@ export function RecordButton({
         variant === "primary" &&
           "bg-red-600 px-8 py-4 text-white shadow-lg hover:bg-red-500",
         variant === "fab" &&
-          "h-14 w-14 bg-red-600 text-white shadow-xl hover:bg-red-500 md:h-16 md:w-16",
+          "h-14 w-14 shadow-xl md:h-16 md:w-16",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}

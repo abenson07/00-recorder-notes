@@ -69,6 +69,7 @@ export function ProjectDetailClient({
   processingTemplate,
   stats,
   initialRecordings,
+  appBasePath = "",
 }: {
   projectId: string;
   title: string;
@@ -79,8 +80,10 @@ export function ProjectDetailClient({
   processingTemplate: ProcessingTemplate;
   stats: RecordingsSummary;
   initialRecordings: RecordingListItem[];
+  appBasePath?: string;
 }) {
   const router = useRouter();
+  const base = appBasePath.replace(/\/$/, "");
   const queryClient = useQueryClient();
   const [dock, setDock] = useState<DockMode>("overview");
   const [recordOpen, setRecordOpen] = useState(false);
@@ -121,7 +124,11 @@ export function ProjectDetailClient({
         {dock === "overview" ? (
           <div className="flex flex-col gap-6">
             {!titleLocked ? (
-              <ProjectTemplatePanel projectId={projectId} initial={processingTemplate} />
+              <ProjectTemplatePanel
+                key={`${projectId}-${processingTemplate.preset}-${processingTemplate.customInstructions ?? ""}`}
+                projectId={projectId}
+                initial={processingTemplate}
+              />
             ) : null}
             <ProjectTabs masterTranscript={masterTranscript} summary={summary} />
           </div>
@@ -142,6 +149,7 @@ export function ProjectDetailClient({
             <RecordingsList
               projectId={projectId}
               items={recordingsQuery.data ?? []}
+              appBasePath={appBasePath}
             />
           </section>
         ) : null}
@@ -157,7 +165,7 @@ export function ProjectDetailClient({
           await queryClient.invalidateQueries({
             queryKey: ["projectRecordings", projectId],
           });
-          router.push(`/projects/${projectId}/recordings/${recordingId}`);
+          router.push(`${base}/projects/${projectId}/recordings/${recordingId}`);
           router.refresh();
         }}
       />
@@ -186,7 +194,7 @@ export function ProjectDetailClient({
             <RecordButton
               variant="fab"
               label="Record"
-              className="-mt-6 shadow-lg"
+              className="-mt-6 bg-red-600 text-white shadow-lg hover:bg-red-500"
               onClick={() => setRecordOpen(true)}
             />
             <span className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
