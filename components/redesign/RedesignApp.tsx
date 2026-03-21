@@ -5,34 +5,21 @@ import Image, { type StaticImageData } from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import artifactsIcon from "@/components/icons/artifacts.svg";
 import backIcon from "@/components/icons/back.svg";
 import chatIcon from "@/components/icons/chat.svg";
 import chevronIcon from "@/components/icons/chevron.svg";
-import rawTranscriptIcon from "@/components/icons/raw-transcript.svg";
-import transcriptIcon from "@/components/icons/transcript.svg";
-import { ChatPanel } from "@/components/chat/ChatPanel";
 import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
-import { ProjectTabs } from "@/components/projects/ProjectTabs";
-import { ProjectTemplatePanel } from "@/components/projects/ProjectTemplatePanel";
-import { RedesignRecordingPanel } from "@/components/redesign/RedesignRecordingPanel";
-import {
-  parseProcessingTemplate,
-  type ProcessingTemplate,
-} from "@/lib/projects/processingTemplate";
 import {
   createPlaceholderProject,
   fetchProjects,
   fetchProjectClient,
   fetchProjectRecordingsClient,
-  fetchRecordingsSummaryClient,
 } from "@/lib/api/projects";
 import {
   parseRedesignState,
   serializeRedesignState,
   type RedesignUiState,
-  type RecordingTabId,
 } from "@/components/redesign/urlState";
 import { cn } from "@/lib/cn";
 import type { Project, RecordingListItem } from "@/lib/types";
@@ -167,12 +154,6 @@ export function RedesignApp() {
     enabled: Boolean(projectId) && (ui.view === "project" || ui.view === "recording"),
   });
 
-  const statsQuery = useQuery({
-    queryKey: ["redesign-stats", projectId],
-    queryFn: () => fetchRecordingsSummaryClient(projectId!),
-    enabled: Boolean(projectId) && (ui.view === "project" || ui.view === "recording"),
-  });
-
   const recordingsQuery = useQuery({
     queryKey: ["projectRecordings", projectId],
     queryFn: () => fetchProjectRecordingsClient(projectId!),
@@ -181,7 +162,6 @@ export function RedesignApp() {
 
   const projects = projectsQuery.data ?? [];
   const project = projectQuery.data ?? null;
-  const stats = statsQuery.data ?? { total: 0, transcribed: 0, pending: 0 };
   const recordings: RecordingListItem[] = recordingsQuery.data ?? [];
 
   const beginRecording = async () => {
@@ -211,36 +191,23 @@ export function RedesignApp() {
     });
   };
 
-  const setRecordingTab = (tab: RecordingTabId) => {
-    if (ui.view !== "recording" || !ui.projectId || !ui.recordingId) {
-      return;
-    }
-    replaceState({
-      ...ui,
-      recordingTab: tab,
-    });
-  };
-
-  const processingTemplate: ProcessingTemplate = project
-    ? parseProcessingTemplate(project.processing_template)
-    : { preset: "summary", customInstructions: null };
-
-  const activeRecordingRow =
-    ui.recordingId != null
-      ? recordings.find((r) => r.id === ui.recordingId)
-      : undefined;
-
   const showProjectsSheet =
     ui.view === "projects" && !projectsQuery.isLoading;
   const showRecordingsSheet =
     ui.view === "project" &&
     ui.projectDetail === "recordings" &&
     project != null;
-  /** Middle sheet visible — cover is the smaller top region */
-  const coverCollapsed = showProjectsSheet || showRecordingsSheet;
+  /** Project / recording routes: empty cover band; content is below */
+  const coverCollapsed =
+    showProjectsSheet ||
+    showRecordingsSheet ||
+    (ui.view === "project" && projectId != null) ||
+    (ui.view === "recording" &&
+      ui.projectId != null &&
+      ui.recordingId != null);
 
   return (
-    <div className="dark relative flex min-h-dvh min-h-full flex-1 flex-col bg-[#07080c] text-zinc-100">
+    <div className="dark relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#07080c] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
 
       {recordSessionError ? (
@@ -254,26 +221,29 @@ export function RedesignApp() {
         </div>
       ) : null}
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 pb-32 pt-2">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-32 pt-2">
         {/* Top: cover — full height when alone; hugs content (min 250px) when middle sheet is visible */}
         <section
           className={cn(
-            "flex flex-col",
-            coverCollapsed ? "shrink-0" : "min-h-0 flex-1",
+            "flex min-h-0 flex-col",
+            coverCollapsed ? "shrink-0" : "min-h-0 flex-1 overflow-hidden",
           )}
         >
           <motion.div
-            layout
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
             className={cn(
-              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-row items-stretch justify-center gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
-              coverCollapsed ? "shrink-0 pt-[72px] pb-10" : "min-h-0 flex-1 py-0",
+              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-col items-stretch justify-center gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
+              coverCollapsed
+                ? "shrink-0 pt-[72px] pb-10"
+                : "min-h-0 flex-1 overflow-hidden py-0",
             )}
           >
             <div
               className={cn(
                 "relative flex min-w-0 flex-col",
-                coverCollapsed ? "min-h-0 w-full" : "min-h-0 flex-1",
+                coverCollapsed
+                  ? "min-h-0 w-full"
+                  : "h-full min-h-0 flex-1 overflow-hidden",
               )}
             >
             <AnimatePresence mode="wait">
@@ -309,7 +279,7 @@ export function RedesignApp() {
                   transition={{ duration: 0.25 }}
                   className={cn(
                     "flex flex-col gap-2",
-                    !coverCollapsed && "min-h-0 flex-1",
+                    !coverCollapsed && "min-h-0 flex-1 overflow-hidden",
                   )}
                 >
                   <p className="text-xs font-medium text-sky-200/70">Welcome back, Alex</p>
@@ -323,155 +293,28 @@ export function RedesignApp() {
                 </motion.div>
               ) : null}
 
-              {ui.view === "project" && project ? (
+              {ui.view === "project" && projectId ? (
                 <motion.div
-                  key={`project-${project.id}-${ui.projectDetail}`}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.22 }}
-                  className={cn(
-                    "flex flex-col gap-3",
-                    !coverCollapsed && "min-h-0 flex-1",
-                  )}
-                >
-                  {ui.projectDetail === "default" ? (
-                    <div className="flex gap-2 border-b border-white/10 pb-2">
-                      <button
-                        type="button"
-                        className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-slate-200"
-                        aria-label="Overview"
-                      >
-                        <SvgIcon src={artifactsIcon} size={20} />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border-b-2 border-sky-400 p-2 text-white"
-                        aria-label="Summary"
-                      >
-                        <SvgIcon src={transcriptIcon} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          replaceState({
-                            ...ui,
-                            projectDetail: "recordings",
-                          })
-                        }
-                        className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-slate-200"
-                        aria-label="Recordings"
-                      >
-                        <SvgIcon src={rawTranscriptIcon} />
-                      </button>
-                    </div>
-                  ) : null}
-
-                  <p className="text-xs font-medium uppercase tracking-wide text-sky-200/80">
-                    {stats.total} recordings · Last activity {formatTimeAgo(project.updated_at) || "—"}
-                  </p>
-                  <h1 className="text-xl font-semibold text-white sm:text-2xl">
-                    {project.title?.trim() ? project.title : "Untitled project"}
-                  </h1>
-
-                  {ui.projectDetail === "default" ? (
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                      {!project.title_locked ? (
-                        <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-3">
-                          <ProjectTemplatePanel
-                            key={`${project.id}-${processingTemplate.preset}-${processingTemplate.customInstructions ?? ""}`}
-                            projectId={project.id}
-                            initial={processingTemplate}
-                          />
-                        </div>
-                      ) : null}
-                      <div className="rounded-2xl border border-white/10 bg-black/20">
-                        <ProjectTabs
-                          masterTranscript={project.master_transcript}
-                          summary={project.summary}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {ui.projectDetail === "chat" ? (
-                    <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-3">
-                      <ChatPanel projectId={project.id} />
-                    </div>
-                  ) : null}
-
-                  {ui.projectDetail === "recordings" ? (
-                    <div
-                      className={cn(
-                        coverCollapsed
-                          ? "flex flex-col"
-                          : "min-h-0 flex-1 overflow-y-auto",
-                      )}
-                    >
-                      <p className="mb-2 line-clamp-3 text-sm leading-relaxed text-slate-300">
-                        {project.summary?.trim()?.slice(0, 220)}
-                        {(project.summary?.length ?? 0) > 220 ? "…" : ""}
-                      </p>
-                      <div className="h-8 bg-gradient-to-t from-[#07080c] to-transparent" />
-                    </div>
-                  ) : null}
-                </motion.div>
-              ) : null}
-
-              {ui.view === "project" && projectId && projectQuery.isFetching && !project ? (
-                <motion.div
-                  key="project-loading"
+                  key={`project-cover-${projectId}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-1 items-center justify-center text-sm text-slate-400"
-                >
-                  Loading project…
-                </motion.div>
-              ) : null}
-
-              {ui.view === "project" && projectId && !projectQuery.isFetching && !project ? (
-                <motion.div
-                  key="project-missing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex flex-1 flex-col items-center justify-center gap-3 text-center"
-                >
-                  <p className="text-sm text-slate-400">Project not found.</p>
-                  <button
-                    type="button"
-                    onClick={() => replaceState(PROJECTS_SHEET_STATE)}
-                    className="text-sm font-medium text-sky-300 underline"
-                  >
-                    All projects
-                  </button>
-                </motion.div>
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="min-h-0 flex-1"
+                  aria-hidden
+                />
               ) : null}
 
               {ui.view === "recording" && ui.projectId && ui.recordingId ? (
                 <motion.div
-                  key="recording"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.22 }}
-                  className="flex min-h-0 flex-1 flex-col gap-2"
-                >
-                  <p className="text-xs text-slate-400">
-                    {activeRecordingRow
-                      ? `${formatTimeAgo(activeRecordingRow.created_at)} · `
-                      : ""}
-                    Recording
-                  </p>
-                  <h1 className="text-xl font-semibold text-white">
-                    {activeRecordingRow?.preview?.trim()?.slice(0, 80) || "Recording"}
-                  </h1>
-                  <RedesignRecordingPanel
-                    projectId={ui.projectId}
-                    recordingId={ui.recordingId}
-                    recordingTab={ui.recordingTab}
-                    onRecordingTabChange={setRecordingTab}
-                  />
-                </motion.div>
+                  key={`recording-cover-${ui.recordingId}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="min-h-0 flex-1"
+                  aria-hidden
+                />
               ) : null}
             </AnimatePresence>
           </div>
