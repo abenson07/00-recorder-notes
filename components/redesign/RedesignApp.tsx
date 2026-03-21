@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image, { type StaticImageData } from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import artifactsIcon from "@/components/icons/artifacts.svg";
 import backIcon from "@/components/icons/back.svg";
@@ -45,6 +45,18 @@ const HOME_STATE: RedesignUiState = {
   projectDetail: "default",
   recordingTab: "formatted",
 };
+
+const PROJECTS_SHEET_STATE: RedesignUiState = {
+  view: "projects",
+  projectId: null,
+  recordingId: null,
+  projectDetail: "default",
+  recordingTab: "formatted",
+};
+
+/** Bottom-bar FAB styling in redesign (overrides RecordButton defaults). */
+const REDESIGN_RECORD_FAB_CLASS =
+  "bg-[#F9FBFA]/20 hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
 function SvgIcon({
   src,
@@ -108,6 +120,33 @@ export function RedesignApp() {
       router.replace(qs ? `/?${qs}` : "/", { scroll: false });
     },
     [router],
+  );
+
+  const onHomeBottomBarPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      if (ui.view !== "home") return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button")) return;
+
+      const pointerId = e.pointerId;
+      const startX = e.clientX;
+      const startY = e.clientY;
+
+      const finish = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        document.removeEventListener("pointerup", finish);
+        document.removeEventListener("pointercancel", finish);
+        const dy = ev.clientY - startY;
+        const dx = ev.clientX - startX;
+        if (dy <= -40 && Math.abs(dy) > Math.abs(dx)) {
+          replaceState(PROJECTS_SHEET_STATE);
+        }
+      };
+
+      document.addEventListener("pointerup", finish);
+      document.addEventListener("pointercancel", finish);
+    },
+    [ui.view, replaceState],
   );
 
   const queryClient = useQueryClient();
@@ -253,16 +292,8 @@ export function RedesignApp() {
                   </h1>
                   <button
                     type="button"
-                    onClick={() =>
-                      replaceState({
-                        view: "projects",
-                        projectId: null,
-                        recordingId: null,
-                        projectDetail: "default",
-                        recordingTab: "formatted",
-                      })
-                    }
-                    className="mt-6 self-start rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 backdrop-blur hover:bg-white/10"
+                    onClick={() => replaceState(PROJECTS_SHEET_STATE)}
+                    className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-24 focus:z-[100] focus:m-0 focus:inline-flex focus:h-auto focus:w-auto focus:overflow-visible focus:rounded-lg focus:border focus:border-white/20 focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
                   >
                     All projects
                   </button>
@@ -286,7 +317,9 @@ export function RedesignApp() {
                   <p className="text-sm text-slate-400">
                     {projectsQuery.isLoading ? "…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
                   </p>
-                  <p className="text-xs text-slate-500">Swipe up on the bar below for quick record</p>
+                  <p className="text-xs text-slate-500">
+                    Tap the record button below to capture a note.
+                  </p>
                 </motion.div>
               ) : null}
 
@@ -406,15 +439,7 @@ export function RedesignApp() {
                   <p className="text-sm text-slate-400">Project not found.</p>
                   <button
                     type="button"
-                    onClick={() =>
-                      replaceState({
-                        view: "projects",
-                        projectId: null,
-                        recordingId: null,
-                        projectDetail: "default",
-                        recordingTab: "formatted",
-                      })
-                    }
+                    onClick={() => replaceState(PROJECTS_SHEET_STATE)}
                     className="text-sm font-medium text-sky-300 underline"
                   >
                     All projects
@@ -530,11 +555,15 @@ export function RedesignApp() {
         ) : null}
       </div>
 
-      {/* Primary chrome: tap targets here; sheet drag vs inner scroll can be isolated on this bar later. */}
+      {/* Primary chrome: on home, swipe up on the bar (outside the record FAB) opens projects. */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-zinc-950/90 px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md",
+          ui.view === "home" && "touch-pan-y",
+        )}
         aria-label="Primary"
         data-redesign-bottom-bar
+        onPointerDown={onHomeBottomBarPointerDown}
       >
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           {ui.view === "home" ? (
@@ -544,7 +573,7 @@ export function RedesignApp() {
                 label="Record"
                 onClick={() => void beginRecording()}
                 disabled={creatingProject}
-                className="bg-slate-800 hover:bg-slate-700"
+                className={REDESIGN_RECORD_FAB_CLASS}
               />
             </div>
           ) : null}
@@ -564,7 +593,7 @@ export function RedesignApp() {
                 label="Record"
                 onClick={() => void beginRecording()}
                 disabled={creatingProject}
-                className="bg-slate-800 hover:bg-slate-700"
+                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <div className="h-12 w-12" aria-hidden />
             </>
@@ -580,13 +609,7 @@ export function RedesignApp() {
                   } else if (ui.projectDetail === "chat") {
                     replaceState({ ...ui, projectDetail: "default" });
                   } else {
-                    replaceState({
-                      view: "projects",
-                      projectId: null,
-                      recordingId: null,
-                      projectDetail: "default",
-                      recordingTab: "formatted",
-                    });
+                    replaceState(PROJECTS_SHEET_STATE);
                   }
                 }}
                 className="flex h-12 w-12 shrink-0 items-center justify-center"
@@ -602,7 +625,7 @@ export function RedesignApp() {
                   setRecordOpen(true);
                 }}
                 disabled={creatingProject}
-                className="bg-slate-800 hover:bg-slate-700"
+                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <button
                 type="button"
@@ -649,7 +672,7 @@ export function RedesignApp() {
                   setRecordOpen(true);
                 }}
                 disabled={creatingProject}
-                className="bg-slate-800 hover:bg-slate-700"
+                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <button
                 type="button"
