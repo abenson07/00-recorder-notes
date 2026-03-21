@@ -2,9 +2,16 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import Image, { type StaticImageData } from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import artifactsIcon from "@/components/icons/artifacts.svg";
+import backIcon from "@/components/icons/back.svg";
+import chatIcon from "@/components/icons/chat.svg";
+import chevronIcon from "@/components/icons/chevron.svg";
+import rawTranscriptIcon from "@/components/icons/raw-transcript.svg";
+import transcriptIcon from "@/components/icons/transcript.svg";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
@@ -40,6 +47,28 @@ const HOME_STATE: RedesignUiState = {
   recordingTab: "formatted",
 };
 
+function SvgIcon({
+  src,
+  className,
+  size = 22,
+}: {
+  src: StaticImageData;
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      unoptimized
+      className={cn("shrink-0 object-contain", className)}
+      aria-hidden
+    />
+  );
+}
+
 function formatTimeAgo(iso: string): string {
   try {
     const d = new Date(iso);
@@ -63,99 +92,6 @@ function formatTimeAgo(iso: string): string {
   } catch {
     return "";
   }
-}
-
-function ChevronBack({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={22}
-      height={22}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={22}
-      height={22}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChatGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={22}
-      height={22}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function ListGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={22}
-      height={22}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  );
-}
-
-function GridGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={20}
-      height={20}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  );
 }
 
 export function RedesignApp() {
@@ -357,14 +293,14 @@ export function RedesignApp() {
                         className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-slate-200"
                         aria-label="Overview"
                       >
-                        <GridGlyph />
+                        <SvgIcon src={artifactsIcon} size={20} />
                       </button>
                       <button
                         type="button"
                         className="rounded-lg border-b-2 border-sky-400 p-2 text-white"
                         aria-label="Summary"
                       >
-                        <ListGlyph />
+                        <SvgIcon src={transcriptIcon} />
                       </button>
                       <button
                         type="button"
@@ -377,7 +313,7 @@ export function RedesignApp() {
                         className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-slate-200"
                         aria-label="Recordings"
                       >
-                        <ChevronRight />
+                        <SvgIcon src={rawTranscriptIcon} />
                       </button>
                     </div>
                   ) : null}
@@ -501,10 +437,10 @@ export function RedesignApp() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.3 }}
-            className="mt-4 flex max-h-[40vh] min-h-0 shrink-0 flex-col gap-0 overflow-y-auto rounded-2xl border border-white/5"
+            className="mt-4 flex max-h-[40vh] min-h-0 shrink-0 flex-col gap-0 overflow-y-auto rounded-2xl"
           >
             {projects.map((p: Project) => (
-              <li key={p.id} className="border-b border-white/5 last:border-0">
+              <li key={p.id}>
                 <button
                   type="button"
                   onClick={() =>
@@ -518,14 +454,21 @@ export function RedesignApp() {
                   }
                   className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-white/5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-white">{p.title}</p>
-                    <p className="mt-0.5 font-mono text-[11px] text-slate-500">
-                      {p.master_transcript ? "Has notes" : "No preview"} ·{" "}
-                      {formatTimeAgo(p.updated_at) || "—"}
-                    </p>
+                  <div className="min-w-0 flex-1 flex flex-col gap-0.5 text-left">
+                    <span className="truncate text-[15px] font-medium leading-snug text-white">
+                      {p.title?.trim() ? p.title : "Untitled project"}
+                    </span>
+                    <span className="truncate text-[11px] font-medium uppercase leading-snug tracking-[0.04em] text-zinc-500">
+                      {(() => {
+                        const n = p.recordings_count ?? 0;
+                        const rec =
+                          n === 1 ? "1 recording" : `${n} recordings`;
+                        const when = formatTimeAgo(p.updated_at) || "—";
+                        return `${rec} • ${when}`.toUpperCase();
+                      })()}
+                    </span>
                   </div>
-                  <ChevronRight className="shrink-0 text-slate-500" />
+                  <SvgIcon src={chevronIcon} size={20} />
                 </button>
               </li>
             ))}
@@ -536,27 +479,27 @@ export function RedesignApp() {
           <motion.ul
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex max-h-[42vh] min-h-0 shrink-0 flex-col overflow-y-auto rounded-2xl border border-white/5"
+            className="mt-3 flex max-h-[42vh] min-h-0 shrink-0 flex-col overflow-y-auto rounded-2xl"
           >
             {recordings.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-slate-500">No recordings yet</li>
             ) : (
               recordings.map((r) => (
-                <li key={r.id} className="border-b border-white/5 last:border-0">
+                <li key={r.id}>
                   <button
                     type="button"
                     onClick={() => openRecording(project.id, r.id)}
                     className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-white/5"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white">
+                    <div className="min-w-0 flex-1 flex flex-col gap-0.5 text-left">
+                      <span className="truncate text-[15px] font-medium leading-snug text-white">
                         {r.preview?.trim()?.slice(0, 120) || "Recording"}
-                      </p>
-                      <p className="mt-0.5 font-mono text-[11px] text-slate-500">
-                        {recordingStatusLabel(r.status)} · {formatTimeAgo(r.created_at) || "—"}
-                      </p>
+                      </span>
+                      <span className="truncate text-[11px] font-medium uppercase leading-snug tracking-[0.04em] text-zinc-500">
+                        {`${recordingStatusLabel(r.status)} · ${formatTimeAgo(r.created_at) || "—"}`.toUpperCase()}
+                      </span>
                     </div>
-                    <ChevronRight className="shrink-0 text-slate-500" />
+                    <SvgIcon src={chevronIcon} size={20} />
                   </button>
                 </li>
               ))
@@ -589,10 +532,10 @@ export function RedesignApp() {
               <button
                 type="button"
                 onClick={() => replaceState(HOME_STATE)}
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                className="flex h-12 w-12 shrink-0 items-center justify-center"
                 aria-label="Back to home"
               >
-                <ChevronBack />
+                <SvgIcon src={backIcon} />
               </button>
               <RecordButton
                 variant="fab"
@@ -624,10 +567,10 @@ export function RedesignApp() {
                     });
                   }
                 }}
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                className="flex h-12 w-12 shrink-0 items-center justify-center"
                 aria-label="Back"
               >
-                <ChevronBack />
+                <SvgIcon src={backIcon} />
               </button>
               <RecordButton
                 variant="fab"
@@ -648,14 +591,12 @@ export function RedesignApp() {
                   })
                 }
                 className={cn(
-                  "flex h-12 w-12 items-center justify-center rounded-full border text-slate-200 hover:bg-white/10",
-                  ui.projectDetail === "chat"
-                    ? "border-sky-400/50 bg-sky-500/10"
-                    : "border-white/10 bg-white/5",
+                  "flex h-12 w-12 shrink-0 items-center justify-center",
+                  ui.projectDetail === "chat" ? "text-sky-400" : "text-zinc-100",
                 )}
                 aria-label="Chat"
               >
-                <ChatGlyph />
+                <SvgIcon src={chatIcon} />
               </button>
             </>
           ) : null}
@@ -673,10 +614,10 @@ export function RedesignApp() {
                     recordingTab: "formatted",
                   })
                 }
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                className="flex h-12 w-12 shrink-0 items-center justify-center"
                 aria-label="Back"
               >
-                <ChevronBack />
+                <SvgIcon src={backIcon} />
               </button>
               <RecordButton
                 variant="fab"
@@ -699,10 +640,10 @@ export function RedesignApp() {
                     recordingTab: "formatted",
                   })
                 }
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                className="flex h-12 w-12 shrink-0 items-center justify-center"
                 aria-label="Chat"
               >
-                <ChatGlyph />
+                <SvgIcon src={chatIcon} />
               </button>
             </>
           ) : null}

@@ -1,3 +1,5 @@
+import Image from "next/image";
+import recordingIcon from "@/components/icons/recording.svg";
 import { cn } from "@/lib/cn";
 
 export function RecordButton({
@@ -29,11 +31,17 @@ export function RecordButton({
       )}
       aria-label={label}
     >
-      <span
+      <Image
+        src={recordingIcon}
+        alt=""
+        width={recordingIcon.width}
+        height={recordingIcon.height}
+        unoptimized
         className={cn(
-          "rounded-full bg-white",
+          "object-contain",
           variant === "primary" ? "h-3 w-3" : "h-3.5 w-3.5",
         )}
+        aria-hidden
       />
       {variant === "primary" ? (
         <span className="text-base">{label}</span>
