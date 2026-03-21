@@ -127,10 +127,7 @@ export function WaveformRecorder({
       const data = new Uint8Array(bufferLength);
       analyser.getByteFrequencyData(data);
 
-      ctx.fillStyle =
-        typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "#18181b"
-          : "#fafafa";
+      ctx.fillStyle = "#1D2528";
       ctx.fillRect(0, 0, w, h);
 
       const barCount = 48;

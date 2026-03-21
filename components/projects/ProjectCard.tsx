@@ -2,10 +2,20 @@ import Link from "next/link";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-export function ProjectCard({ project, className }: { project: Project; className?: string }) {
+export function ProjectCard({
+  project,
+  className,
+  appBasePath = "",
+}: {
+  project: Project;
+  className?: string;
+  /** e.g. `/legacy` so links resolve under `/legacy/projects/...` */
+  appBasePath?: string;
+}) {
+  const base = appBasePath.replace(/\/$/, "");
   return (
     <Link
-      href={`/projects/${project.id}`}
+      href={`${base}/projects/${project.id}`}
       className={cn(
         "block rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950",
         className,

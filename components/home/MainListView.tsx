@@ -10,8 +10,9 @@ import { createPlaceholderProject, fetchProjects } from "@/lib/api/projects";
 import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
 
-export function MainListView() {
+export function MainListView({ appBasePath = "" }: { appBasePath?: string }) {
   const router = useRouter();
+  const base = appBasePath.replace(/\/$/, "");
   const queryClient = useQueryClient();
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordProjectId, setRecordProjectId] = useState<string | null>(null);
@@ -72,7 +73,10 @@ export function MainListView() {
           </p>
         </header>
 
-        <GlobalSearchSection onSearchActiveChange={setSearchActive} />
+        <GlobalSearchSection
+          onSearchActiveChange={setSearchActive}
+          appBasePath={appBasePath}
+        />
 
         {projects.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center py-16">
@@ -88,7 +92,7 @@ export function MainListView() {
             />
           </div>
         ) : searchActive ? null : (
-          <ProjectList projects={projects} />
+          <ProjectList projects={projects} appBasePath={appBasePath} />
         )}
       </div>
 
@@ -98,6 +102,7 @@ export function MainListView() {
             <RecordButton
               variant="fab"
               label="Record"
+              className="bg-red-600 text-white hover:bg-red-500"
               onClick={() => void beginRecording()}
               disabled={creatingProject}
             />
@@ -120,7 +125,7 @@ export function MainListView() {
           setRecordProjectId(null);
           await queryClient.invalidateQueries({ queryKey: ["projects"] });
           if (pid) {
-            router.push(`/projects/${pid}/recordings/${recordingId}`);
+            router.push(`${base}/projects/${pid}/recordings/${recordingId}`);
           }
         }}
       />

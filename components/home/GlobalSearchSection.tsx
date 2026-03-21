@@ -85,10 +85,13 @@ function formatRecordingTime(iso: string | null) {
 export function GlobalSearchSection({
   className,
   onSearchActiveChange,
+  appBasePath = "",
 }: {
   className?: string;
   onSearchActiveChange?: (active: boolean) => void;
+  appBasePath?: string;
 }) {
+  const base = appBasePath.replace(/\/$/, "");
   const [input, setInput] = useState("");
   const [debounced, setDebounced] = useState("");
 
@@ -177,8 +180,8 @@ export function GlobalSearchSection({
                     {g.items.map((r, idx) => {
                       const href =
                         r.recordingId != null && r.recordingId !== ""
-                          ? `/projects/${r.projectId}/recordings/${r.recordingId}`
-                          : `/projects/${r.projectId}`;
+                          ? `${base}/projects/${r.projectId}/recordings/${r.recordingId}`
+                          : `${base}/projects/${r.projectId}`;
                       const when = formatRecordingTime(r.recordingCreatedAt);
                       return (
                         <li key={`${r.projectId}-${r.recordingId ?? "p"}-${idx}-${r.score}`}>

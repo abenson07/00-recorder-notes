@@ -109,9 +109,14 @@ export function RedesignApp() {
     [router],
   );
 
-  const onHomeBottomBarPointerDown = useCallback(
+  const onBottomBarSwipePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
-      if (ui.view !== "home") return;
+      const { view, projectDetail, projectId, recordingTab } = ui;
+      const canSwipeHomeToProjects = view === "home";
+      const canSwipeProjectToRecordings =
+        view === "project" && projectDetail === "default";
+      if (!canSwipeHomeToProjects && !canSwipeProjectToRecordings) return;
+
       const target = e.target as HTMLElement;
       if (target.closest("button")) return;
 
@@ -126,14 +131,24 @@ export function RedesignApp() {
         const dy = ev.clientY - startY;
         const dx = ev.clientX - startX;
         if (dy <= -40 && Math.abs(dy) > Math.abs(dx)) {
-          replaceState(PROJECTS_SHEET_STATE);
+          if (canSwipeHomeToProjects) {
+            replaceState(PROJECTS_SHEET_STATE);
+          } else if (canSwipeProjectToRecordings && projectId) {
+            replaceState({
+              view: "project",
+              projectId,
+              recordingId: null,
+              projectDetail: "recordings",
+              recordingTab,
+            });
+          }
         }
       };
 
       document.addEventListener("pointerup", finish);
       document.addEventListener("pointercancel", finish);
     },
-    [ui.view, replaceState],
+    [ui, replaceState],
   );
 
   const queryClient = useQueryClient();
@@ -411,11 +426,13 @@ export function RedesignApp() {
         <nav
           className={cn(
             "relative z-40 flex h-[88px] shrink-0 flex-col justify-center border-t border-white/5 bg-zinc-950/90 px-6 backdrop-blur-md",
-            ui.view === "home" && "touch-pan-y",
+            (ui.view === "home" ||
+              (ui.view === "project" && ui.projectDetail === "default")) &&
+              "touch-pan-y",
           )}
           aria-label="Primary"
           data-redesign-bottom-bar
-          onPointerDown={onHomeBottomBarPointerDown}
+          onPointerDown={onBottomBarSwipePointerDown}
         >
           <div className="mx-auto flex h-12 w-full max-w-lg items-center justify-between gap-4">
           {ui.view === "home" ? (

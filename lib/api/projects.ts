@@ -1,4 +1,4 @@
-import type { Project, RecordingListItem } from "@/lib/types";
+import type { Project, RecordingListItem, RecordingsSummary } from "@/lib/types";
 
 type ProjectsListApiRow = {
   id: string;
@@ -25,6 +25,7 @@ export async function fetchProjects(): Promise<Project[]> {
     title_locked: false,
     master_transcript: row.masterTranscriptPreview,
     summary: "",
+    recordings_count: row.recordingsCount,
     created_at: row.updatedAt,
     updated_at: row.updatedAt,
   }));
@@ -73,6 +74,34 @@ export async function patchProject(
     throw new Error(err);
   }
   return data as Project;
+}
+
+/** Client: load one project from `GET /api/projects/:id`. */
+export async function fetchProjectClient(projectId: string): Promise<Project | null> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    cache: "no-store",
+  });
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error("Could not load project");
+  }
+  return (await res.json()) as Project;
+}
+
+/** Client: recording counts for a project. */
+export async function fetchRecordingsSummaryClient(
+  projectId: string,
+): Promise<RecordingsSummary> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/recordings/stats`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) {
+    return { total: 0, transcribed: 0, pending: 0 };
+  }
+  return (await res.json()) as RecordingsSummary;
 }
 
 export async function fetchProjectRecordingsClient(
