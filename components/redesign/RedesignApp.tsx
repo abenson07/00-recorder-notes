@@ -256,19 +256,8 @@ export function RedesignApp() {
       ? recordings.find((r) => r.id === ui.recordingId)
       : undefined;
 
-  const coverHeightClass =
-    ui.view === "home"
-      ? "min-h-[68vh]"
-      : ui.view === "projects"
-        ? "min-h-[200px]"
-        : ui.view === "project" && ui.projectDetail === "recordings"
-          ? "min-h-[38vh] max-h-[48vh]"
-          : ui.view === "project"
-            ? "min-h-[62vh]"
-            : "min-h-[56vh]";
-
   return (
-    <div className="dark relative flex min-h-full flex-1 flex-col bg-[#07080c] text-zinc-100">
+    <div className="dark relative flex min-h-dvh min-h-full flex-1 flex-col bg-[#07080c] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
 
       <header className="relative z-10 flex items-center justify-end gap-3 px-4 pt-3 pb-1">
@@ -292,17 +281,16 @@ export function RedesignApp() {
       ) : null}
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 pb-32 pt-2">
-        <motion.div
-          layout
-          transition={{ type: "spring", stiffness: 420, damping: 38 }}
-          className={cn(
-            "relative flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/70 to-slate-600/25 p-6 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl",
-            coverHeightClass,
-          )}
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-black/40 to-transparent" />
+        {/* Top: cover — grows to fill space above optional middle + fixed bottom bar */}
+        <section className="flex min-h-0 flex-1 flex-col">
+          <motion.div
+            layout
+            transition={{ type: "spring", stiffness: 420, damping: 38 }}
+            className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/70 to-slate-600/25 p-6 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl"
+          >
+            <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-black/40 to-transparent" />
 
-          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="relative flex min-h-0 flex-1 flex-col">
             <AnimatePresence mode="wait">
               {ui.view === "home" ? (
                 <motion.div
@@ -505,13 +493,15 @@ export function RedesignApp() {
             </AnimatePresence>
           </div>
         </motion.div>
+        </section>
 
+        {/* Middle: scrollable lists — only present on views that show a sheet below the cover */}
         {ui.view === "projects" && !projectsQuery.isLoading ? (
           <motion.ul
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.3 }}
-            className="mt-4 flex max-h-[40vh] min-h-0 flex-col gap-0 overflow-y-auto rounded-2xl border border-white/5"
+            className="mt-4 flex max-h-[40vh] min-h-0 shrink-0 flex-col gap-0 overflow-y-auto rounded-2xl border border-white/5"
           >
             {projects.map((p: Project) => (
               <li key={p.id} className="border-b border-white/5 last:border-0">
@@ -546,7 +536,7 @@ export function RedesignApp() {
           <motion.ul
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex max-h-[42vh] min-h-0 flex-col overflow-y-auto rounded-2xl border border-white/5"
+            className="mt-3 flex max-h-[42vh] min-h-0 shrink-0 flex-col overflow-y-auto rounded-2xl border border-white/5"
           >
             {recordings.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-slate-500">No recordings yet</li>
