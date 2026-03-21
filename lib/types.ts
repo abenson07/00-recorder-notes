@@ -24,6 +24,8 @@ export interface Project {
   title_locked: boolean;
   master_transcript: string;
   summary: string;
+  /** Set when loaded from `GET /api/projects` list; omitted on single-project fetches. */
+  recordings_count?: number;
   /** JSON from DB; parse with `parseProcessingTemplate` when needed. */
   processing_template?: ProjectProcessingTemplate | unknown | null;
   created_at: string;
