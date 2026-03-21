@@ -16,12 +16,14 @@ import {
   fetchProjectClient,
   fetchProjectRecordingsClient,
 } from "@/lib/api/projects";
+import { ProjectCover } from "@/components/redesign/ProjectCover";
 import {
   parseRedesignState,
   serializeRedesignState,
   type RedesignUiState,
 } from "@/components/redesign/urlState";
 import { cn } from "@/lib/cn";
+import { formatTimeAgo } from "@/lib/formatTimeAgo";
 import type { Project, RecordingListItem } from "@/lib/types";
 import { recordingStatusLabel } from "@/lib/recording-status";
 
@@ -65,31 +67,6 @@ function SvgIcon({
       aria-hidden
     />
   );
-}
-
-function formatTimeAgo(iso: string): string {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) {
-      return "";
-    }
-    const diff = Date.now() - d.getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) {
-      return "just now";
-    }
-    if (mins < 60) {
-      return `${mins} min ago`;
-    }
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 48) {
-      return `${hrs} hr ago`;
-    }
-    const days = Math.floor(hrs / 24);
-    return `${days} day${days === 1 ? "" : "s"} ago`;
-  } catch {
-    return "";
-  }
 }
 
 export function RedesignApp() {
@@ -249,9 +226,17 @@ export function RedesignApp() {
           <motion.div
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
             className={cn(
-              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-1 flex-col items-stretch gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
+              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-1 flex-col items-stretch gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)]",
+              (ui.view === "project" || ui.view === "recording") && projectId
+                ? "px-0"
+                : "px-8",
               coverCollapsed
-                ? "justify-start pt-[72px] pb-10"
+                ? cn(
+                    "justify-start pt-[72px]",
+                    (ui.view === "project" || ui.view === "recording") && projectId
+                      ? "pb-0"
+                      : "pb-10",
+                  )
                 : "min-h-0 justify-center py-0",
             )}
           >
@@ -312,20 +297,29 @@ export function RedesignApp() {
                   transition={{ duration: 0.15 }}
                   className="flex min-h-0 flex-1 flex-col"
                 >
-                  {ui.projectDetail === "default" ? (
-                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          replaceState({ ...ui, projectDetail: "recordings" })
-                        }
-                        className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
-                      >
-                        Show recordings
-                      </button>
-                    </div>
+                  {project ? (
+                    <ProjectCover
+                      metadataLine={`${project.recordings_count ?? recordings.length} Recording${(project.recordings_count ?? recordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(project.updated_at) || "—"}`}
+                      title={project.title?.trim() ? project.title : "Untitled project"}
+                      bodyMarkdown={project.summary?.trim() || project.master_transcript?.trim() || ""}
+                      footer={
+                        ui.projectDetail === "default" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              replaceState({ ...ui, projectDetail: "recordings" })
+                            }
+                            className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
+                          >
+                            Show recordings
+                          </button>
+                        ) : null
+                      }
+                    />
                   ) : (
-                    <div className="min-h-0 flex-1" aria-hidden />
+                    <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
+                      Loading project…
+                    </div>
                   )}
                 </motion.div>
               ) : null}
@@ -337,9 +331,37 @@ export function RedesignApp() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="min-h-0 flex-1"
-                  aria-hidden
-                />
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  {project ? (
+                    <ProjectCover
+                      metadataLine={`${project.recordings_count ?? recordings.length} Recording${(project.recordings_count ?? recordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(project.updated_at) || "—"}`}
+                      title={project.title?.trim() ? project.title : "Untitled project"}
+                      bodyMarkdown={project.summary?.trim() || project.master_transcript?.trim() || ""}
+                      footer={
+                        <button
+                          type="button"
+                          onClick={() =>
+                            replaceState({
+                              view: "project",
+                              projectId: ui.projectId,
+                              recordingId: null,
+                              projectDetail: "recordings",
+                              recordingTab: "formatted",
+                            })
+                          }
+                          className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
+                        >
+                          Show recordings
+                        </button>
+                      }
+                    />
+                  ) : (
+                    <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
+                      Loading project…
+                    </div>
+                  )}
+                </motion.div>
               ) : null}
             </AnimatePresence>
           </div>
@@ -425,7 +447,7 @@ export function RedesignApp() {
         {/* Bottom: fixed 88px chrome row */}
         <nav
           className={cn(
-            "relative z-40 flex h-[88px] shrink-0 flex-col justify-center border-t border-white/5 bg-zinc-950/90 px-6 backdrop-blur-md",
+            "relative z-40 flex h-[88px] shrink-0 flex-col justify-center bg-zinc-950/90 px-6 backdrop-blur-md",
             (ui.view === "home" ||
               (ui.view === "project" && ui.projectDetail === "default")) &&
               "touch-pan-y",
