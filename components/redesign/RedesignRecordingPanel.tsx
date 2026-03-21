@@ -65,6 +65,18 @@ const TOP_TABS: { id: RecordingTabId; label: string }[] = [
   { id: "raw", label: "Raw" },
 ];
 
+const recordingTabContentPresence = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { duration: 0.22, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.18, ease: "easeIn" as const },
+  },
+};
+
 export function RedesignRecordingPanel({
   projectId,
   recordingId,
@@ -149,6 +161,10 @@ export function RedesignRecordingPanel({
   const failedHint =
     recording?.status === "failed" ? rawErrorHint(recording.transcription_raw) : null;
 
+  const tabIndex = TOP_TABS.findIndex((x) => x.id === recordingTab);
+  const tabIndicatorLeftPct =
+    (Math.max(0, tabIndex) / TOP_TABS.length) * 100;
+
   if (!recording) {
     return (
       <div className="flex flex-1 items-center justify-center py-12 text-sm text-slate-400">
@@ -186,11 +202,11 @@ export function RedesignRecordingPanel({
       >
         <motion.div
           className="absolute bottom-0 top-0 rounded-full bg-sky-400/90"
-          layout
-          transition={{ type: "spring", stiffness: 400, damping: 35 }}
+          initial={false}
+          animate={{ left: `${tabIndicatorLeftPct}%` }}
+          transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
           style={{
             width: `${100 / TOP_TABS.length}%`,
-            left: `${(TOP_TABS.findIndex((x) => x.id === recordingTab) / TOP_TABS.length) * 100}%`,
           }}
         />
       </div>
@@ -263,10 +279,10 @@ export function RedesignRecordingPanel({
         <AnimatePresence mode="wait">
           <motion.div
             key={recordingTab}
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
+            variants={recordingTabContentPresence}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             className="flex flex-col gap-4 pb-4"
           >
             {recordingTab === "artifacts" ? (

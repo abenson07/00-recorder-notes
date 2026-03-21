@@ -47,6 +47,19 @@ const PROJECTS_SHEET_STATE: RedesignUiState = {
 const REDESIGN_RECORD_FAB_CLASS =
   "h-12 w-12 bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
+/** Fade out fully, then fade in (AnimatePresence mode="wait") — no slide/spring. */
+const redesignViewPresence = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { duration: 0.22, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.18, ease: "easeIn" as const },
+  },
+};
+
 function SvgIcon({
   src,
   className,
@@ -223,8 +236,7 @@ export function RedesignApp() {
             hasMiddleSection && "min-h-[250px]",
           )}
         >
-          <motion.div
-            transition={{ type: "spring", stiffness: 420, damping: 38 }}
+          <div
             className={cn(
               "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-1 flex-col items-stretch gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)]",
               (ui.view === "project" || ui.view === "recording") && projectId
@@ -245,10 +257,10 @@ export function RedesignApp() {
               {ui.view === "home" ? (
                 <motion.div
                   key="home"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.25 }}
+                  variants={redesignViewPresence}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
                   className="flex flex-1 flex-col justify-center gap-3"
                 >
                   <p className="text-sm font-medium text-sky-200/80">Hello, Alex</p>
@@ -268,10 +280,10 @@ export function RedesignApp() {
               {ui.view === "projects" ? (
                 <motion.div
                   key="projects"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.25 }}
+                  variants={redesignViewPresence}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
                   className={cn(
                     "flex flex-col gap-2",
                     !coverCollapsed && "min-h-0 flex-1 overflow-hidden",
@@ -291,10 +303,10 @@ export function RedesignApp() {
               {ui.view === "project" && projectId ? (
                 <motion.div
                   key={`project-cover-${projectId}-${ui.projectDetail}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  variants={redesignViewPresence}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
                   className="flex min-h-0 flex-1 flex-col"
                 >
                   {project ? (
@@ -327,10 +339,10 @@ export function RedesignApp() {
               {ui.view === "recording" && ui.projectId && ui.recordingId ? (
                 <motion.div
                   key={`recording-cover-${ui.recordingId}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  variants={redesignViewPresence}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
                   className="flex min-h-0 flex-1 flex-col"
                 >
                   {project ? (
@@ -365,15 +377,15 @@ export function RedesignApp() {
               ) : null}
             </AnimatePresence>
           </div>
-        </motion.div>
+        </div>
         </section>
 
         {/* Middle: intrinsic height; shrinks and scrolls when space is tight */}
         {ui.view === "projects" && !projectsQuery.isLoading ? (
           <motion.ul
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05, duration: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.06, duration: 0.22, ease: "easeOut" }}
             className="relative flex min-h-0 shrink flex-col gap-0 overflow-y-auto rounded-2xl"
           >
             {projects.map((p: Project) => (
@@ -414,8 +426,9 @@ export function RedesignApp() {
 
         {ui.view === "project" && ui.projectDetail === "recordings" && project ? (
           <motion.ul
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             className="relative flex min-h-0 shrink flex-col overflow-y-auto rounded-2xl"
           >
             {recordings.length === 0 ? (
