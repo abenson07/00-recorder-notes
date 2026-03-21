@@ -43,7 +43,7 @@ const PROJECTS_SHEET_STATE: RedesignUiState = {
 
 /** Bottom-bar FAB styling in redesign (overrides RecordButton defaults). */
 const REDESIGN_RECORD_FAB_CLASS =
-  "bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
+  "h-12 w-12 bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
 function SvgIcon({
   src,
@@ -197,7 +197,7 @@ export function RedesignApp() {
     ui.view === "project" &&
     ui.projectDetail === "recordings" &&
     project != null;
-  /** Project / recording routes: empty cover band; content is below */
+  /** Project / recording routes: compact cover band; content is below */
   const coverCollapsed =
     showProjectsSheet ||
     showRecordingsSheet ||
@@ -206,46 +206,41 @@ export function RedesignApp() {
       ui.projectId != null &&
       ui.recordingId != null);
 
+  const hasMiddleSection = showProjectsSheet || showRecordingsSheet;
+
   return (
     <div className="dark relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#07080c] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
 
-      {recordSessionError ? (
-        <div className="relative z-10 mx-auto w-full max-w-lg px-4">
-          <p
-            role="alert"
-            className="rounded-xl border border-red-500/40 bg-red-950/50 px-3 py-2 text-sm text-red-100"
-          >
-            {recordSessionError}
-          </p>
-        </div>
-      ) : null}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pt-2 px-4 pb-8">
+        {recordSessionError ? (
+          <div className="mx-auto w-full max-w-lg shrink-0">
+            <p
+              role="alert"
+              className="rounded-xl border border-red-500/40 bg-red-950/50 px-3 py-2 text-sm text-red-100"
+            >
+              {recordSessionError}
+            </p>
+          </div>
+        ) : null}
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-32 pt-2">
-        {/* Top: cover — full height when alone; hugs content (min 250px) when middle sheet is visible */}
+        {/* Top: fills space above middle + bottom; min height when middle is visible */}
         <section
           className={cn(
-            "flex min-h-0 flex-col",
-            coverCollapsed ? "shrink-0" : "min-h-0 flex-1 overflow-hidden",
+            "relative flex min-h-0 flex-1 flex-col overflow-hidden",
+            hasMiddleSection && "min-h-[250px]",
           )}
         >
           <motion.div
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
             className={cn(
-              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-col items-stretch justify-center gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
+              "relative mx-auto flex min-h-[250px] w-full max-w-[408px] flex-1 flex-col items-stretch gap-2 self-stretch overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#030406_0%,#143443_32.21%,#878B8A_100%)] px-8",
               coverCollapsed
-                ? "shrink-0 pt-[72px] pb-10"
-                : "min-h-0 flex-1 overflow-hidden py-0",
+                ? "justify-start pt-[72px] pb-10"
+                : "min-h-0 justify-center py-0",
             )}
           >
-            <div
-              className={cn(
-                "relative flex min-w-0 flex-col",
-                coverCollapsed
-                  ? "min-h-0 w-full"
-                  : "h-full min-h-0 flex-1 overflow-hidden",
-              )}
-            >
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <AnimatePresence mode="wait">
               {ui.view === "home" ? (
                 <motion.div
@@ -295,14 +290,29 @@ export function RedesignApp() {
 
               {ui.view === "project" && projectId ? (
                 <motion.div
-                  key={`project-cover-${projectId}`}
+                  key={`project-cover-${projectId}-${ui.projectDetail}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="min-h-0 flex-1"
-                  aria-hidden
-                />
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  {ui.projectDetail === "default" ? (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          replaceState({ ...ui, projectDetail: "recordings" })
+                        }
+                        className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
+                      >
+                        Show recordings
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="min-h-0 flex-1" aria-hidden />
+                  )}
+                </motion.div>
               ) : null}
 
               {ui.view === "recording" && ui.projectId && ui.recordingId ? (
@@ -321,13 +331,13 @@ export function RedesignApp() {
         </motion.div>
         </section>
 
-        {/* Middle: scrollable lists — only present on views that show a sheet below the cover */}
+        {/* Middle: intrinsic height; shrinks and scrolls when space is tight */}
         {ui.view === "projects" && !projectsQuery.isLoading ? (
           <motion.ul
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05, duration: 0.3 }}
-            className="mt-4 flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto rounded-2xl"
+            className="relative flex min-h-0 shrink flex-col gap-0 overflow-y-auto rounded-2xl"
           >
             {projects.map((p: Project) => (
               <li key={p.id}>
@@ -369,7 +379,7 @@ export function RedesignApp() {
           <motion.ul
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl"
+            className="relative flex min-h-0 shrink flex-col overflow-y-auto rounded-2xl"
           >
             {recordings.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-slate-500">No recordings yet</li>
@@ -396,19 +406,18 @@ export function RedesignApp() {
             )}
           </motion.ul>
         ) : null}
-      </div>
 
-      {/* Primary chrome: on home, swipe up on the bar (outside the record FAB) opens projects. */}
-      <nav
-        className={cn(
-          "fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md",
-          ui.view === "home" && "touch-pan-y",
-        )}
-        aria-label="Primary"
-        data-redesign-bottom-bar
-        onPointerDown={onHomeBottomBarPointerDown}
-      >
-        <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
+        {/* Bottom: fixed 88px chrome row */}
+        <nav
+          className={cn(
+            "relative z-40 flex h-[88px] shrink-0 flex-col justify-center border-t border-white/5 bg-zinc-950/90 px-6 backdrop-blur-md",
+            ui.view === "home" && "touch-pan-y",
+          )}
+          aria-label="Primary"
+          data-redesign-bottom-bar
+          onPointerDown={onHomeBottomBarPointerDown}
+        >
+          <div className="mx-auto flex h-12 w-full max-w-lg items-center justify-between gap-4">
           {ui.view === "home" ? (
             <div className="flex flex-1 justify-center">
               <RecordButton
@@ -535,20 +544,9 @@ export function RedesignApp() {
               </button>
             </>
           ) : null}
-        </div>
-
-        {ui.view === "project" && project && ui.projectDetail === "default" ? (
-          <div className="mx-auto mt-2 flex max-w-lg justify-center">
-            <button
-              type="button"
-              onClick={() => replaceState({ ...ui, projectDetail: "recordings" })}
-              className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
-            >
-              Show recordings
-            </button>
           </div>
-        ) : null}
-      </nav>
+        </nav>
+      </div>
 
       <RecordModal
         open={recordOpen}
