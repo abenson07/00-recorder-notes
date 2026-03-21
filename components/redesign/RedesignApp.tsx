@@ -8,8 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import backIcon from "@/components/icons/back.svg";
 import chatIcon from "@/components/icons/chat.svg";
 import chevronIcon from "@/components/icons/chevron.svg";
-import { RecordButton } from "@/components/record/RecordButton";
-import { RecordModal } from "@/components/record/RecordModal";
+import { UploadModal } from "@/components/record/UploadModal";
 import {
   createPlaceholderProject,
   fetchProjects,
@@ -43,8 +42,8 @@ const PROJECTS_SHEET_STATE: RedesignUiState = {
   recordingTab: "formatted",
 };
 
-/** Bottom-bar FAB styling in redesign (overrides RecordButton defaults). */
-const REDESIGN_RECORD_FAB_CLASS =
+/** Bottom-bar FAB styling in redesign for the upload action. */
+const REDESIGN_UPLOAD_FAB_CLASS =
   "h-12 w-12 bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
 function SvgIcon({
@@ -66,6 +65,48 @@ function SvgIcon({
       className={cn("shrink-0 object-contain", className)}
       aria-hidden
     />
+  );
+}
+
+function UploadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("h-5 w-5", className)}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 3v12" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
+}
+
+function UploadFabButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label="Upload audio"
+      className={cn(
+        "inline-flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400 disabled:cursor-not-allowed disabled:opacity-60",
+        REDESIGN_UPLOAD_FAB_CLASS,
+      )}
+    >
+      <UploadIcon />
+    </button>
   );
 }
 
@@ -129,9 +170,9 @@ export function RedesignApp() {
   );
 
   const queryClient = useQueryClient();
-  const [recordOpen, setRecordOpen] = useState(false);
-  const [recordProjectId, setRecordProjectId] = useState<string | null>(null);
-  const [recordSessionError, setRecordSessionError] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadProjectId, setUploadProjectId] = useState<string | null>(null);
+  const [uploadSessionError, setUploadSessionError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
 
   const projectsQuery = useQuery({
@@ -156,17 +197,19 @@ export function RedesignApp() {
   const project = projectQuery.data ?? null;
   const recordings: RecordingListItem[] = recordingsQuery.data ?? [];
 
-  const beginRecording = async () => {
-    setRecordSessionError(null);
+  // Recording flow is intentionally disabled for this upload-first experiment.
+  // const beginRecording = async () => { ... };
+  const beginUpload = async () => {
+    setUploadSessionError(null);
     setCreatingProject(true);
     try {
       const id = await createPlaceholderProject();
-      setRecordProjectId(id);
-      setRecordOpen(true);
+      setUploadProjectId(id);
+      setUploadOpen(true);
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (e) {
-      setRecordSessionError(
-        e instanceof Error ? e.message : "Could not start recording. Try again.",
+      setUploadSessionError(
+        e instanceof Error ? e.message : "Could not start upload. Try again.",
       );
     } finally {
       setCreatingProject(false);
@@ -205,13 +248,13 @@ export function RedesignApp() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pt-2 px-4 pb-8">
-        {recordSessionError ? (
+        {uploadSessionError ? (
           <div className="mx-auto w-full max-w-lg shrink-0">
             <p
               role="alert"
               className="rounded-xl border border-red-500/40 bg-red-950/50 px-3 py-2 text-sm text-red-100"
             >
-              {recordSessionError}
+              {uploadSessionError}
             </p>
           </div>
         ) : null}
@@ -283,7 +326,7 @@ export function RedesignApp() {
                     {projectsQuery.isLoading ? "…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
                   </p>
                   <p className="text-xs text-slate-500">
-                    Tap the record button below to capture a note.
+                    Tap the upload button below to add an audio note.
                   </p>
                 </motion.div>
               ) : null}
@@ -459,12 +502,12 @@ export function RedesignApp() {
           <div className="mx-auto flex h-12 w-full max-w-lg items-center justify-between gap-4">
           {ui.view === "home" ? (
             <div className="flex flex-1 justify-center">
-              <RecordButton
-                variant="fab"
-                label="Record"
-                onClick={() => void beginRecording()}
+              <UploadFabButton
+                onClick={() => {
+                  // void beginRecording();
+                  void beginUpload();
+                }}
                 disabled={creatingProject}
-                className={REDESIGN_RECORD_FAB_CLASS}
               />
             </div>
           ) : null}
@@ -479,12 +522,12 @@ export function RedesignApp() {
               >
                 <SvgIcon src={backIcon} />
               </button>
-              <RecordButton
-                variant="fab"
-                label="Record"
-                onClick={() => void beginRecording()}
+              <UploadFabButton
+                onClick={() => {
+                  // void beginRecording();
+                  void beginUpload();
+                }}
                 disabled={creatingProject}
-                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <div className="h-12 w-12" aria-hidden />
             </>
@@ -508,15 +551,14 @@ export function RedesignApp() {
               >
                 <SvgIcon src={backIcon} />
               </button>
-              <RecordButton
-                variant="fab"
-                label="Record"
+              <UploadFabButton
                 onClick={() => {
-                  setRecordProjectId(project.id);
-                  setRecordOpen(true);
+                  // setRecordProjectId(project.id);
+                  // setRecordOpen(true);
+                  setUploadProjectId(project.id);
+                  setUploadOpen(true);
                 }}
                 disabled={creatingProject}
-                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <button
                 type="button"
@@ -555,15 +597,14 @@ export function RedesignApp() {
               >
                 <SvgIcon src={backIcon} />
               </button>
-              <RecordButton
-                variant="fab"
-                label="Record"
+              <UploadFabButton
                 onClick={() => {
-                  setRecordProjectId(ui.projectId);
-                  setRecordOpen(true);
+                  // setRecordProjectId(ui.projectId);
+                  // setRecordOpen(true);
+                  setUploadProjectId(ui.projectId);
+                  setUploadOpen(true);
                 }}
                 disabled={creatingProject}
-                className={REDESIGN_RECORD_FAB_CLASS}
               />
               <button
                 type="button"
@@ -587,19 +628,19 @@ export function RedesignApp() {
         </nav>
       </div>
 
-      <RecordModal
-        open={recordOpen}
-        projectId={recordProjectId}
+      <UploadModal
+        open={uploadOpen}
+        projectId={uploadProjectId}
         onOpenChange={(next) => {
-          setRecordOpen(next);
+          setUploadOpen(next);
           if (!next) {
-            setRecordProjectId(null);
+            setUploadProjectId(null);
           }
         }}
         onUploaded={async (recordingId) => {
-          const pid = recordProjectId;
-          setRecordOpen(false);
-          setRecordProjectId(null);
+          const pid = uploadProjectId;
+          setUploadOpen(false);
+          setUploadProjectId(null);
           await queryClient.invalidateQueries({ queryKey: ["projects"] });
           if (pid) {
             await queryClient.invalidateQueries({ queryKey: ["projectRecordings", pid] });
