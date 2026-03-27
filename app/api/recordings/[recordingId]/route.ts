@@ -51,7 +51,26 @@ export async function GET(
       return NextResponse.json({ error: "Recording not found" }, { status: 404 });
     }
 
-    return NextResponse.json(row);
+    const { data: segmentRows, error: segError } = await supabase
+      .from("note_recording_segments")
+      .select("id, position, audio_mime_type, duration_ms, status")
+      .eq("recording_id", recordingId)
+      .order("position", { ascending: true });
+
+    if (segError) {
+      console.error("[GET /api/recordings/:id] segments", segError);
+      return NextResponse.json({ ...row, segments: [] });
+    }
+
+    const segments = (segmentRows ?? []).map((s) => ({
+      id: s.id,
+      position: s.position,
+      audio_mime_type: s.audio_mime_type,
+      duration_ms: s.duration_ms,
+      status: s.status,
+    }));
+
+    return NextResponse.json({ ...row, segments });
   } catch (e) {
     console.error("[GET /api/recordings/:id]", e);
     return NextResponse.json({ error: "Failed to load recording" }, { status: 500 });

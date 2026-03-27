@@ -1,8 +1,11 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import gsap from "gsap";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { gsapFadeDurations } from "@/lib/gsap/fadeDurations";
+import { registerGsapPlugins } from "@/lib/gsap/register-plugins";
 import { AudioPlayer } from "@/components/playback/AudioPlayer";
 import { TaskOutputList } from "@/components/recordings/TaskOutputList";
 import { SearchableTextPane } from "@/components/text/SearchableTextPane";
@@ -65,18 +68,6 @@ const TOP_TABS: { id: RecordingTabId; label: string }[] = [
   { id: "raw", label: "Raw" },
 ];
 
-const recordingTabContentPresence = {
-  initial: { opacity: 0 },
-  animate: {
-    opacity: 1,
-    transition: { duration: 0.22, ease: "easeOut" as const },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: 0.18, ease: "easeIn" as const },
-  },
-};
-
 export function RedesignRecordingPanel({
   projectId,
   recordingId,
@@ -95,14 +86,105 @@ export function RedesignRecordingPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const autoStartSentRef = useRef(false);
   const tabScrollRef = useRef<HTMLDivElement>(null);
+  const tabIndicatorRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
+  const isFirstTabPaint = useRef(true);
+  const latestTabRef = useRef(recordingTab);
+  latestTabRef.current = recordingTab;
+
+  const [displayTab, setDisplayTab] = useState(recordingTab);
+
+  const tabIndex = TOP_TABS.findIndex((x) => x.id === recordingTab);
+  const tabIndicatorLeftPct =
+    (Math.max(0, tabIndex) / TOP_TABS.length) * 100;
+
+  /** Runs before `useGSAP` layout work so `isFirstTabPaint` is not reset after the first fade-in. */
+  useLayoutEffect(() => {
+    setDisplayTab(recordingTab);
+    isFirstTabPaint.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when switching recordings
+  }, [recordingId]);
+
+  useGSAP(
+    () => {
+      registerGsapPlugins();
+      const el = tabIndicatorRef.current;
+      if (!el) {
+        return;
+      }
+      const { in: d } = gsapFadeDurations();
+      gsap.to(el, {
+        left: `${tabIndicatorLeftPct}%`,
+        duration: d,
+        ease: "power2.inOut",
+      });
+    },
+    { dependencies: [tabIndicatorLeftPct], scope: tabIndicatorRef },
+  );
+
+  useGSAP(
+    () => {
+      registerGsapPlugins();
+      const el = tabContentRef.current;
+      if (!el) {
+        return;
+      }
+      const { out: dOut, in: dIn } = gsapFadeDurations();
+
+      if (recordingTab !== displayTab) {
+        gsap.to(el, {
+          opacity: 0,
+          duration: dOut,
+          ease: "power2.in",
+          onComplete: () => setDisplayTab(latestTabRef.current),
+        });
+        return;
+      }
+
+      if (isFirstTabPaint.current) {
+        isFirstTabPaint.current = false;
+        if (dIn === 0) {
+          gsap.set(el, { opacity: 1 });
+        } else {
+          gsap.fromTo(
+            el,
+            { opacity: 0 },
+            { opacity: 1, duration: dIn, ease: "power2.out" },
+          );
+        }
+        return;
+      }
+
+      if (dIn === 0) {
+        gsap.set(el, { opacity: 1 });
+      } else {
+        gsap.fromTo(
+          el,
+          { opacity: 0 },
+          { opacity: 1, duration: dIn, ease: "power2.out" },
+        );
+      }
+    },
+    { dependencies: [recordingTab, displayTab], scope: tabContentRef },
+  );
 
   const q = useQuery({
     queryKey: ["recording", projectId, recordingId],
     queryFn: () => fetchRecordingJson(recordingId, projectId),
     initialData: initialRecording ?? undefined,
     refetchInterval: (query) => {
-      const st = query.state.data?.status;
-      if (st === "transcription_pending") {
+      const d = query.state.data;
+      if (!d) {
+        return false;
+      }
+      if (d.status === "transcription_pending") {
+        return 2000;
+      }
+      if (
+        d.segments?.some(
+          (s) => s.status === "transcription_pending" || s.status === "uploaded",
+        )
+      ) {
         return 2000;
       }
       return false;
@@ -158,12 +240,20 @@ export function RedesignRecordingPanel({
     mutate(recordingId);
   }, [recording, recordingId, mutate]);
 
+  /** Re-invoke start-transcription while parent is pending so server can recover stuck segment rows. */
+  useEffect(() => {
+    if (recording?.status !== "transcription_pending") {
+      return;
+    }
+    const rid = recordingId;
+    const id = window.setInterval(() => {
+      mutate(rid);
+    }, 25_000);
+    return () => clearInterval(id);
+  }, [recording?.status, recordingId, mutate]);
+
   const failedHint =
     recording?.status === "failed" ? rawErrorHint(recording.transcription_raw) : null;
-
-  const tabIndex = TOP_TABS.findIndex((x) => x.id === recordingTab);
-  const tabIndicatorLeftPct =
-    (Math.max(0, tabIndex) / TOP_TABS.length) * 100;
 
   if (!recording) {
     return (
@@ -200,14 +290,10 @@ export function RedesignRecordingPanel({
         className="relative mb-1 h-0.5 overflow-hidden rounded-full bg-white/10"
         aria-hidden
       >
-        <motion.div
+        <div
+          ref={tabIndicatorRef}
           className="absolute bottom-0 top-0 rounded-full bg-sky-400/90"
-          initial={false}
-          animate={{ left: `${tabIndicatorLeftPct}%` }}
-          transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{
-            width: `${100 / TOP_TABS.length}%`,
-          }}
+          style={{ width: `${100 / TOP_TABS.length}%` }}
         />
       </div>
 
@@ -276,47 +362,38 @@ export function RedesignRecordingPanel({
       />
 
       <div className="min-h-[200px] flex-1 overflow-auto">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={recordingTab}
-            variants={recordingTabContentPresence}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="flex flex-col gap-4 pb-4"
-          >
-            {recordingTab === "artifacts" ? (
-              <p className="text-sm text-slate-400">No artifacts yet.</p>
-            ) : null}
-            {recordingTab === "formatted" ? (
-              <>
-                {tasksPayload ? <TaskOutputList payload={tasksPayload} /> : null}
-                {recording.output_summary_debug ? (
-                  <details className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <summary className="cursor-pointer text-xs font-medium">
-                      Structured output did not validate
-                    </summary>
-                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
-                      {recording.output_summary_debug}
-                    </pre>
-                  </details>
-                ) : null}
-                <SearchableTextPane
-                  body={summaryPaneBody}
-                  searchQuery={searchQuery}
-                  emptyMessage="— No formatted output yet —"
-                />
-              </>
-            ) : null}
-            {recordingTab === "raw" ? (
+        <div ref={tabContentRef} className="flex flex-col gap-4 pb-4">
+          {displayTab === "artifacts" ? (
+            <p className="text-sm text-slate-400">No artifacts yet.</p>
+          ) : null}
+          {displayTab === "formatted" ? (
+            <>
+              {tasksPayload ? <TaskOutputList payload={tasksPayload} /> : null}
+              {recording.output_summary_debug ? (
+                <details className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                  <summary className="cursor-pointer text-xs font-medium">
+                    Structured output did not validate
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                    {recording.output_summary_debug}
+                  </pre>
+                </details>
+              ) : null}
               <SearchableTextPane
-                body={rawTranscriptBody(recording)}
+                body={summaryPaneBody}
                 searchQuery={searchQuery}
-                emptyMessage="— No raw transcript yet —"
+                emptyMessage="— No formatted output yet —"
               />
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
+            </>
+          ) : null}
+          {displayTab === "raw" ? (
+            <SearchableTextPane
+              body={rawTranscriptBody(recording)}
+              searchQuery={searchQuery}
+              emptyMessage="— No raw transcript yet —"
+            />
+          ) : null}
+        </div>
       </div>
 
       <AudioPlayer

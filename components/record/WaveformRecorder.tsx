@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createRecordingWithUploadInstructions,
+  createSegmentWithUploadInstructions,
   uploadRecordingBlob,
+  uploadSegmentBlob,
 } from "@/lib/api/recording-upload";
+import type { CreateRecordingResponse, CreateSegmentResponse } from "@/lib/api/recording-upload";
 import { cn } from "@/lib/cn";
 
 type Phase = "idle" | "recording" | "paused" | "ready_to_save" | "uploading" | "error";
@@ -47,13 +50,18 @@ function userFacingMicError(err: unknown): string {
   return "Could not open the microphone. Check permissions and try again.";
 }
 
+type UploadInstructions = CreateRecordingResponse | CreateSegmentResponse;
+
 export function WaveformRecorder({
   projectId,
+  appendToRecordingId,
   onComplete,
   onRequestClose,
   className,
 }: {
   projectId: string;
+  /** When set, upload adds a new segment to this recording instead of creating a new one. */
+  appendToRecordingId?: string;
   onComplete: (recordingId: string) => void;
   onRequestClose: () => void;
   className?: string;
@@ -72,9 +80,7 @@ export function WaveformRecorder({
 
   const draftBlobRef = useRef<Blob | null>(null);
   const draftMimeRef = useRef<string>("audio/webm");
-  const instructionsRef = useRef<Awaited<
-    ReturnType<typeof createRecordingWithUploadInstructions>
-  > | null>(null);
+  const instructionsRef = useRef<UploadInstructions | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -309,17 +315,29 @@ export function WaveformRecorder({
     try {
       let instructions = instructionsRef.current;
       if (!instructions) {
-        instructions = await createRecordingWithUploadInstructions(projectId, mime);
+        if (appendToRecordingId) {
+          instructions = await createSegmentWithUploadInstructions(
+            appendToRecordingId,
+            projectId,
+            mime,
+          );
+        } else {
+          instructions = await createRecordingWithUploadInstructions(projectId, mime);
+        }
         instructionsRef.current = instructions;
       }
-      await uploadRecordingBlob(instructions, blob, mime);
+      if ("segmentId" in instructions && instructions.segmentId) {
+        await uploadSegmentBlob(instructions, blob, mime);
+      } else {
+        await uploadRecordingBlob(instructions, blob, mime);
+      }
       onComplete(instructions.recordingId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Upload failed";
       setErrorMessage(msg);
       setPhase("error");
     }
-  }, [onComplete, projectId]);
+  }, [appendToRecordingId, onComplete, projectId]);
 
   const resetAll = useCallback(() => {
     teardownCapture();

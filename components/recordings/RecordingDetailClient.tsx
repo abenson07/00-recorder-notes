@@ -1,12 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { TabBar } from "@/components/common/TabBar";
+import { AppendSegmentModal } from "@/components/record/AppendSegmentModal";
 import { AudioPlayer } from "@/components/playback/AudioPlayer";
 import { TaskOutputList } from "@/components/recordings/TaskOutputList";
 import { SearchableTextPane } from "@/components/text/SearchableTextPane";
 import { tasksOutputPayloadSchema } from "@/lib/openai/recordingOutput";
+import {
+  createSegmentWithUploadInstructions,
+  uploadSegmentBlob,
+} from "@/lib/api/recording-upload";
 import {
   fetchRecordingJson,
   postStartTranscription,
@@ -85,6 +90,10 @@ export function RecordingDetailClient({
 }) {
   const queryClient = useQueryClient();
   const [startError, setStartError] = useState<string | null>(null);
+  const [appendOpen, setAppendOpen] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState("summary");
   const [searchQuery, setSearchQuery] = useState("");
   const autoStartSentRef = useRef(false);
@@ -94,8 +103,19 @@ export function RecordingDetailClient({
     queryFn: () => fetchRecordingJson(recordingId, projectId),
     initialData: initialRecording,
     refetchInterval: (query) => {
-      const s = query.state.data?.status;
-      if (s === "transcription_pending") {
+      const d = query.state.data;
+      if (!d) {
+        return false;
+      }
+      if (d.status === "transcription_pending") {
+        return 2000;
+      }
+      const segs = d.segments;
+      if (
+        segs?.some(
+          (s) => s.status === "transcription_pending" || s.status === "uploaded",
+        )
+      ) {
         return 2000;
       }
       return false;
@@ -149,10 +169,65 @@ export function RecordingDetailClient({
     mutate(recordingId);
   }, [recordingStatus, recordingId, mutate]);
 
+  useEffect(() => {
+    if (recordingStatus !== "transcription_pending") {
+      return;
+    }
+    const rid = recordingId;
+    const id = window.setInterval(() => {
+      mutate(rid);
+    }, 25_000);
+    return () => clearInterval(id);
+  }, [recordingStatus, recordingId, mutate]);
+
   const failedHint =
     recording.status === "failed" ? rawErrorHint(recording.transcription_raw) : null;
 
   const durationLabel = formatDurationMs(recording.duration_ms);
+
+  const canAppendSegments =
+    recording.status === "transcribed" || recording.status === "failed";
+
+  const segmentCount = recording.segments?.length;
+
+  const onAppendUploaded = async (rid: string) => {
+    setAppendOpen(false);
+    setUploadError(null);
+    autoStartSentRef.current = false;
+    await queryClient.invalidateQueries({
+      queryKey: ["recording", projectId, rid],
+    });
+    mutate(rid);
+  };
+
+  const onAudioFileSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) {
+      return;
+    }
+    setUploadError(null);
+    setUploadBusy(true);
+    try {
+      const mime =
+        file.type && file.type.startsWith("audio/")
+          ? file.type
+          : "audio/webm";
+      const instructions = await createSegmentWithUploadInstructions(
+        recordingId,
+        projectId,
+        mime,
+      );
+      await uploadSegmentBlob(instructions, file, mime);
+      await onAppendUploaded(instructions.recordingId);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Could not upload audio file",
+      );
+    } finally {
+      setUploadBusy(false);
+    }
+  };
 
   return (
     <>
@@ -201,7 +276,59 @@ export function RecordingDetailClient({
             {durationLabel ?? "—"}
           </dd>
         </div>
+        {typeof segmentCount === "number" && segmentCount > 0 ? (
+          <div className="sm:col-span-2">
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Audio parts
+            </dt>
+            <dd className="text-zinc-900 dark:text-zinc-100">
+              {segmentCount} file{segmentCount === 1 ? "" : "s"} (played in order)
+            </dd>
+          </div>
+        ) : null}
       </dl>
+
+      {canAppendSegments ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={uploadBusy}
+            onClick={() => setAppendOpen(true)}
+            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            Record more
+          </button>
+          <button
+            type="button"
+            disabled={uploadBusy}
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+          >
+            {uploadBusy ? "Uploading…" : "Upload audio file"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,.webm,.mp3,.wav,.m4a,.ogg"
+            className="hidden"
+            onChange={(ev) => void onAudioFileSelected(ev)}
+          />
+        </div>
+      ) : null}
+
+      {uploadError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
+          {uploadError}
+        </p>
+      ) : null}
+
+      <AppendSegmentModal
+        open={appendOpen}
+        projectId={projectId}
+        recordingId={recordingId}
+        onOpenChange={setAppendOpen}
+        onUploaded={(rid) => void onAppendUploaded(rid)}
+      />
 
       {recording.status === "uploaded" && startPending ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">

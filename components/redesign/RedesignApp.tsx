@@ -1,10 +1,22 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image, { type StaticImageData } from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { gsapFadeDurations } from "@/lib/gsap/fadeDurations";
+import { registerGsapPlugins } from "@/lib/gsap/register-plugins";
 import backIcon from "@/components/icons/back.svg";
 import chatIcon from "@/components/icons/chat.svg";
 import chevronIcon from "@/components/icons/chevron.svg";
@@ -47,18 +59,22 @@ const PROJECTS_SHEET_STATE: RedesignUiState = {
 const REDESIGN_RECORD_FAB_CLASS =
   "h-12 w-12 bg-[#F9FBFA]/20 text-white hover:bg-[#F9FBFA]/30 disabled:hover:bg-[#F9FBFA]/20";
 
-/** Fade out fully, then fade in (AnimatePresence mode="wait") — no slide/spring. */
-const redesignViewPresence = {
-  initial: { opacity: 0 },
-  animate: {
-    opacity: 1,
-    transition: { duration: 0.22, ease: "easeOut" as const },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: 0.18, ease: "easeIn" as const },
-  },
-};
+function coverTransitionKey(state: RedesignUiState): string | null {
+  const pid = state.projectId ?? undefined;
+  if (state.view === "home") {
+    return "home";
+  }
+  if (state.view === "projects") {
+    return "projects";
+  }
+  if (state.view === "project" && pid) {
+    return `project:${pid}:${state.projectDetail}`;
+  }
+  if (state.view === "recording" && pid && state.recordingId) {
+    return `recording:${pid}:${state.recordingId}`;
+  }
+  return null;
+}
 
 function SvgIcon({
   src,
@@ -169,6 +185,208 @@ export function RedesignApp() {
   const project = projectQuery.data ?? null;
   const recordings: RecordingListItem[] = recordingsQuery.data ?? [];
 
+  const [displayUi, setDisplayUi] = useState(ui);
+  const coverContentRef = useRef<HTMLDivElement>(null);
+  const isFirstCoverPaint = useRef(true);
+  const latestUiRef = useRef(ui);
+  latestUiRef.current = ui;
+
+  const projectsUlRef = useRef<HTMLUListElement>(null);
+  const recordingsUlRef = useRef<HTMLUListElement>(null);
+
+  const targetCoverKey = coverTransitionKey(ui);
+  const displayCoverKey = coverTransitionKey(displayUi);
+
+  useEffect(() => {
+    if (coverTransitionKey(ui) === coverTransitionKey(displayUi)) {
+      setDisplayUi(ui);
+    }
+  }, [ui, displayUi]);
+
+  const coverProjectId = displayUi.projectId ?? undefined;
+  const coverProjectQuery = useQuery({
+    queryKey: ["redesign-project", coverProjectId],
+    queryFn: () => fetchProjectClient(coverProjectId!),
+    enabled:
+      Boolean(coverProjectId) &&
+      (displayUi.view === "project" || displayUi.view === "recording"),
+  });
+  const coverProject = coverProjectQuery.data ?? null;
+
+  const coverRecordingsQuery = useQuery({
+    queryKey: ["projectRecordings", coverProjectId],
+    queryFn: () => fetchProjectRecordingsClient(coverProjectId!),
+    enabled:
+      Boolean(coverProjectId) &&
+      (displayUi.view === "project" || displayUi.view === "recording"),
+  });
+  const coverRecordings: RecordingListItem[] = coverRecordingsQuery.data ?? [];
+
+  useGSAP(
+    () => {
+      registerGsapPlugins();
+      const el = coverContentRef.current;
+      if (!el) {
+        return;
+      }
+      const tk = coverTransitionKey(ui);
+      const dk = coverTransitionKey(displayUi);
+      const { out: dOut, in: dIn } = gsapFadeDurations();
+
+      if (tk !== dk) {
+        gsap.to(el, {
+          opacity: 0,
+          duration: dOut,
+          ease: "power2.in",
+          onComplete: () => setDisplayUi(latestUiRef.current),
+        });
+        return;
+      }
+
+      if (isFirstCoverPaint.current) {
+        isFirstCoverPaint.current = false;
+        if (dIn === 0) {
+          gsap.set(el, { opacity: 1 });
+        } else {
+          gsap.fromTo(
+            el,
+            { opacity: 0 },
+            { opacity: 1, duration: dIn, ease: "power2.out" },
+          );
+        }
+        return;
+      }
+
+      if (dIn === 0) {
+        gsap.set(el, { opacity: 1 });
+      } else {
+        gsap.fromTo(
+          el,
+          { opacity: 0 },
+          { opacity: 1, duration: dIn, ease: "power2.out" },
+        );
+      }
+    },
+    {
+      dependencies: [targetCoverKey, displayCoverKey],
+      scope: coverContentRef,
+    },
+  );
+
+  const projectIdsDep = projects.map((p) => p.id).join(",");
+  const recordingIdsDep = recordings.map((r) => r.id).join(",");
+
+  useGSAP(
+    () => {
+      registerGsapPlugins();
+      const ul = projectsUlRef.current;
+      if (!ul || ui.view !== "projects" || projectsQuery.isLoading) {
+        return;
+      }
+      const items = gsap.utils.toArray<HTMLElement>(
+        ul.querySelectorAll(":scope > li"),
+      );
+      const { in: dIn } = gsapFadeDurations();
+      if (dIn === 0) {
+        gsap.set(ul, { opacity: 1 });
+        gsap.set(items, { opacity: 1, y: 0 });
+        return;
+      }
+      if (items.length === 0) {
+        gsap.fromTo(
+          ul,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.22, delay: 0.06, ease: "power2.out" },
+        );
+        return;
+      }
+      gsap.set(ul, { opacity: 0 });
+      gsap.to(ul, {
+        opacity: 1,
+        duration: 0.22,
+        delay: 0.06,
+        ease: "power2.out",
+      });
+      gsap.set(items, { opacity: 0, y: 8 });
+      ScrollTrigger.create({
+        trigger: ul,
+        start: "top 88%",
+        once: true,
+        onEnter: () => {
+          gsap.to(items, {
+            opacity: 1,
+            y: 0,
+            duration: 0.38,
+            stagger: 0.045,
+            ease: "power2.out",
+          });
+        },
+      });
+    },
+    {
+      scope: projectsUlRef,
+      dependencies: [ui.view, projectsQuery.isLoading, projectIdsDep],
+    },
+  );
+
+  useGSAP(
+    () => {
+      registerGsapPlugins();
+      const ul = recordingsUlRef.current;
+      if (
+        !ul ||
+        ui.view !== "project" ||
+        ui.projectDetail !== "recordings" ||
+        !project
+      ) {
+        return;
+      }
+      const items = gsap.utils.toArray<HTMLElement>(
+        ul.querySelectorAll(":scope > li"),
+      );
+      const { in: dIn } = gsapFadeDurations();
+      if (dIn === 0) {
+        gsap.set(ul, { opacity: 1 });
+        gsap.set(items, { opacity: 1, y: 0 });
+        return;
+      }
+      if (items.length === 0) {
+        gsap.fromTo(
+          ul,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.22, ease: "power2.out" },
+        );
+        return;
+      }
+      gsap.set(ul, { opacity: 0 });
+      gsap.to(ul, { opacity: 1, duration: 0.22, ease: "power2.out" });
+      gsap.set(items, { opacity: 0, y: 8 });
+      ScrollTrigger.create({
+        trigger: ul,
+        start: "top 88%",
+        once: true,
+        onEnter: () => {
+          gsap.to(items, {
+            opacity: 1,
+            y: 0,
+            duration: 0.36,
+            stagger: 0.04,
+            ease: "power2.out",
+          });
+        },
+      });
+    },
+    {
+      scope: recordingsUlRef,
+      dependencies: [
+        ui.view,
+        ui.projectDetail,
+        project?.id,
+        recordingIdsDep,
+      ],
+    },
+  );
+
   const beginRecording = async () => {
     setRecordSessionError(null);
     setCreatingProject(true);
@@ -213,6 +431,14 @@ export function RedesignApp() {
 
   const hasMiddleSection = showProjectsSheet || showRecordingsSheet;
 
+  useLayoutEffect(() => {
+    registerGsapPlugins();
+    const id = requestAnimationFrame(() => {
+      ScrollTrigger.refresh();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [coverCollapsed, hasMiddleSection, ui.view, ui.projectDetail]);
+
   return (
     <div className="dark relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#07080c] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
@@ -253,139 +479,116 @@ export function RedesignApp() {
             )}
           >
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <AnimatePresence mode="wait">
-              {ui.view === "home" ? (
-                <motion.div
-                  key="home"
-                  variants={redesignViewPresence}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="flex flex-1 flex-col justify-center gap-3"
-                >
-                  <p className="text-sm font-medium text-sky-200/80">Hello, Alex</p>
-                  <h1 className="max-w-sm text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl">
-                    What are we discussing today?
-                  </h1>
-                  <button
-                    type="button"
-                    onClick={() => replaceState(PROJECTS_SHEET_STATE)}
-                    className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-24 focus:z-[100] focus:m-0 focus:inline-flex focus:h-auto focus:w-auto focus:overflow-visible focus:rounded-lg focus:border focus:border-white/20 focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+              <div
+                ref={coverContentRef}
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+              >
+                {displayUi.view === "home" ? (
+                  <div className="flex flex-1 flex-col justify-center gap-3">
+                    <p className="text-sm font-medium text-sky-200/80">Hello, Alex</p>
+                    <h1 className="max-w-sm text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl">
+                      What are we discussing today?
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() => replaceState(PROJECTS_SHEET_STATE)}
+                      className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-24 focus:z-[100] focus:m-0 focus:inline-flex focus:h-auto focus:w-auto focus:overflow-visible focus:rounded-lg focus:border focus:border-white/20 focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    >
+                      All projects
+                    </button>
+                  </div>
+                ) : null}
+
+                {displayUi.view === "projects" ? (
+                  <div
+                    className={cn(
+                      "flex flex-col gap-2",
+                      !coverCollapsed && "min-h-0 flex-1 overflow-hidden",
+                    )}
                   >
-                    All projects
-                  </button>
-                </motion.div>
-              ) : null}
+                    <p className="text-xs font-medium text-sky-200/70">Welcome back, Alex</p>
+                    <h1 className="text-2xl font-semibold text-white">All Projects</h1>
+                    <p className="text-sm text-slate-400">
+                      {projectsQuery.isLoading ? "…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Tap the record button below to capture a note.
+                    </p>
+                  </div>
+                ) : null}
 
-              {ui.view === "projects" ? (
-                <motion.div
-                  key="projects"
-                  variants={redesignViewPresence}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className={cn(
-                    "flex flex-col gap-2",
-                    !coverCollapsed && "min-h-0 flex-1 overflow-hidden",
-                  )}
-                >
-                  <p className="text-xs font-medium text-sky-200/70">Welcome back, Alex</p>
-                  <h1 className="text-2xl font-semibold text-white">All Projects</h1>
-                  <p className="text-sm text-slate-400">
-                    {projectsQuery.isLoading ? "…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Tap the record button below to capture a note.
-                  </p>
-                </motion.div>
-              ) : null}
+                {displayUi.view === "project" && displayUi.projectId ? (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    {coverProject ? (
+                      <ProjectCover
+                        metadataLine={`${coverProject.recordings_count ?? coverRecordings.length} Recording${(coverProject.recordings_count ?? coverRecordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(coverProject.updated_at) || "—"}`}
+                        title={coverProject.title?.trim() ? coverProject.title : "Untitled project"}
+                        bodyMarkdown={coverProject.summary?.trim() || coverProject.master_transcript?.trim() || ""}
+                        footer={
+                          displayUi.projectDetail === "default" ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                replaceState({ ...ui, projectDetail: "recordings" })
+                              }
+                              className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
+                            >
+                              Show recordings
+                            </button>
+                          ) : null
+                        }
+                      />
+                    ) : (
+                      <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
+                        Loading project…
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
-              {ui.view === "project" && projectId ? (
-                <motion.div
-                  key={`project-cover-${projectId}-${ui.projectDetail}`}
-                  variants={redesignViewPresence}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="flex min-h-0 flex-1 flex-col"
-                >
-                  {project ? (
-                    <ProjectCover
-                      metadataLine={`${project.recordings_count ?? recordings.length} Recording${(project.recordings_count ?? recordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(project.updated_at) || "—"}`}
-                      title={project.title?.trim() ? project.title : "Untitled project"}
-                      bodyMarkdown={project.summary?.trim() || project.master_transcript?.trim() || ""}
-                      footer={
-                        ui.projectDetail === "default" ? (
+                {displayUi.view === "recording" &&
+                displayUi.projectId &&
+                displayUi.recordingId ? (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    {coverProject ? (
+                      <ProjectCover
+                        metadataLine={`${coverProject.recordings_count ?? coverRecordings.length} Recording${(coverProject.recordings_count ?? coverRecordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(coverProject.updated_at) || "—"}`}
+                        title={coverProject.title?.trim() ? coverProject.title : "Untitled project"}
+                        bodyMarkdown={coverProject.summary?.trim() || coverProject.master_transcript?.trim() || ""}
+                        footer={
                           <button
                             type="button"
                             onClick={() =>
-                              replaceState({ ...ui, projectDetail: "recordings" })
+                              replaceState({
+                                view: "project",
+                                projectId: displayUi.projectId,
+                                recordingId: null,
+                                projectDetail: "recordings",
+                                recordingTab: "formatted",
+                              })
                             }
                             className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
                           >
                             Show recordings
                           </button>
-                        ) : null
-                      }
-                    />
-                  ) : (
-                    <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
-                      Loading project…
-                    </div>
-                  )}
-                </motion.div>
-              ) : null}
-
-              {ui.view === "recording" && ui.projectId && ui.recordingId ? (
-                <motion.div
-                  key={`recording-cover-${ui.recordingId}`}
-                  variants={redesignViewPresence}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="flex min-h-0 flex-1 flex-col"
-                >
-                  {project ? (
-                    <ProjectCover
-                      metadataLine={`${project.recordings_count ?? recordings.length} Recording${(project.recordings_count ?? recordings.length) === 1 ? "" : "s"} • Last updated ${formatTimeAgo(project.updated_at) || "—"}`}
-                      title={project.title?.trim() ? project.title : "Untitled project"}
-                      bodyMarkdown={project.summary?.trim() || project.master_transcript?.trim() || ""}
-                      footer={
-                        <button
-                          type="button"
-                          onClick={() =>
-                            replaceState({
-                              view: "project",
-                              projectId: ui.projectId,
-                              recordingId: null,
-                              projectDetail: "recordings",
-                              recordingTab: "formatted",
-                            })
-                          }
-                          className="text-xs font-medium text-sky-300/90 underline-offset-2 hover:underline"
-                        >
-                          Show recordings
-                        </button>
-                      }
-                    />
-                  ) : (
-                    <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
-                      Loading project…
-                    </div>
-                  )}
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
+                        }
+                      />
+                    ) : (
+                      <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-sm text-zinc-400">
+                        Loading project…
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
         </div>
         </section>
 
         {/* Middle: intrinsic height; shrinks and scrolls when space is tight */}
         {ui.view === "projects" && !projectsQuery.isLoading ? (
-          <motion.ul
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.06, duration: 0.22, ease: "easeOut" }}
+          <ul
+            ref={projectsUlRef}
             className="relative flex min-h-0 shrink flex-col gap-0 overflow-y-auto rounded-2xl"
           >
             {projects.map((p: Project) => (
@@ -421,14 +624,12 @@ export function RedesignApp() {
                 </button>
               </li>
             ))}
-          </motion.ul>
+          </ul>
         ) : null}
 
         {ui.view === "project" && ui.projectDetail === "recordings" && project ? (
-          <motion.ul
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+          <ul
+            ref={recordingsUlRef}
             className="relative flex min-h-0 shrink flex-col overflow-y-auto rounded-2xl"
           >
             {recordings.length === 0 ? (
@@ -454,7 +655,7 @@ export function RedesignApp() {
                 </li>
               ))
             )}
-          </motion.ul>
+          </ul>
         ) : null}
 
         {/* Bottom: fixed 88px chrome row */}

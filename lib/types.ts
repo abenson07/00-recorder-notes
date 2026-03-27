@@ -32,6 +32,15 @@ export interface Project {
   updated_at: string;
 }
 
+/** Segment row exposed to the client (no storage paths). */
+export interface RecordingSegmentListItem {
+  id: string;
+  position: number;
+  audio_mime_type: string;
+  duration_ms: number | null;
+  status: RecordingStatus;
+}
+
 export interface Recording {
   id: string;
   project_id: string | null;
@@ -48,6 +57,8 @@ export interface Recording {
   output_summary_debug?: string | null;
   created_at: string;
   updated_at: string;
+  /** Ordered playback segments; omitted when table not migrated yet. */
+  segments?: RecordingSegmentListItem[];
 }
 
 export interface RecordingsSummary {

@@ -151,6 +151,20 @@ export async function POST(
       return NextResponse.json({ error: "Failed to create recording" }, { status: 500 });
     }
 
+    const { error: segmentInsertError } = await supabase.from("note_recording_segments").insert({
+      recording_id: recordingId,
+      position: 0,
+      audio_storage_path: audioStoragePath,
+      audio_mime_type: audioMimeType,
+      status: "uploaded",
+    });
+
+    if (segmentInsertError) {
+      console.error("[POST .../recordings] segment insert", segmentInsertError);
+      await supabase.from("note_recordings").delete().eq("id", recordingId);
+      return NextResponse.json({ error: "Failed to create recording" }, { status: 500 });
+    }
+
     let signedUpload;
     try {
       signedUpload = await createRecordingSignedUpload(recordingId, projectId);
