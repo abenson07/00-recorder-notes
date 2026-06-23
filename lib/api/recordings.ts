@@ -47,7 +47,7 @@ export async function fetchRecordingJson(
   projectId: string,
   options?: FetchRecordingJsonOptions,
 ): Promise<Recording | null> {
-  const qs = new URLSearchParams({ projectId });
+  const qs = new URLSearchParams({ itemId: projectId });
   const path = `/api/recordings/${encodeURIComponent(recordingId)}?${qs.toString()}`;
   const serverBase =
     options?.serverOrigin?.replace(/\/$/, "").trim() || undefined;
@@ -145,8 +145,9 @@ export function userFacingTranscriptionError(
       return "This recording is too large to transcribe in one request. Try a shorter clip or lower quality.";
     case "STORAGE_DOWNLOAD":
       return "Could not load the audio file from storage.";
+    case "NO_ITEM":
     case "NO_PROJECT":
-      return "This recording is not linked to a project.";
+      return "This recording is not linked to an item.";
     default:
       return fallback;
   }

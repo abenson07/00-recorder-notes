@@ -1,63 +1,44 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
+import { GET as itemGet, PATCH as itemPatch } from "@/app/api/items/[itemId]/route";
 
-const projectIdSchema = z.uuid();
+const idSchema = z.uuid();
 
-const patchBodySchema = z
-  .object({
-    title: z.string().max(2000).optional(),
-    description: z.string().max(8000).nullable().optional(),
-    processing_template: z
-      .object({
-        preset: z.enum(["summary", "tasks"]),
-        customInstructions: z.string().max(8000).nullable().optional(),
-      })
-      .optional(),
-  })
-  .refine(
-    (v) =>
-      v.title !== undefined ||
-      v.description !== undefined ||
-      v.processing_template !== undefined,
-    { message: "Provide at least one field to update" },
-  );
-
+/**
+ * Backward compat: if id is an item, proxy to item API.
+ * If id is a parent project, return project detail.
+ */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId: rawId } = await context.params;
-  const idParse = projectIdSchema.safeParse(rawId);
+  const idParse = idSchema.safeParse(rawId);
   if (!idParse.success) {
-    return NextResponse.json({ error: "Invalid project id" }, { status: 404 });
+    return NextResponse.json({ error: "Invalid id" }, { status: 404 });
   }
-  const projectId = idParse.data;
+  const id = idParse.data;
 
-  try {
-    const supabase = createServiceRoleClient();
-    const { data, error } = await supabase
-      .from("projects")
-      .select(
-        "id, title, description, direction_files, title_locked, master_transcript, summary, processing_template, created_at, updated_at",
-      )
-      .eq("id", projectId)
-      .maybeSingle();
+  const supabase = createServiceRoleClient();
+  const { data: item } = await supabase.from("items").select("id").eq("id", id).maybeSingle();
+  if (item) {
+    return itemGet(request, { params: Promise.resolve({ itemId: id }) });
+  }
 
-    if (error) {
-      console.error("[GET /api/projects/:id]", error);
-      return NextResponse.json({ error: "Failed to load project" }, { status: 500 });
-    }
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("id, title, description, context_id, created_at, updated_at")
+    .eq("id", id)
+    .maybeSingle();
 
-    if (!data) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(data);
-  } catch (e) {
-    console.error("[GET /api/projects/:id]", e);
+  if (error) {
     return NextResponse.json({ error: "Failed to load project" }, { status: 500 });
   }
+  if (!project) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json(project);
 }
 
 export async function PATCH(
@@ -65,11 +46,17 @@ export async function PATCH(
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId: rawId } = await context.params;
-  const idParse = projectIdSchema.safeParse(rawId);
+  const idParse = idSchema.safeParse(rawId);
   if (!idParse.success) {
-    return NextResponse.json({ error: "Invalid project id" }, { status: 404 });
+    return NextResponse.json({ error: "Invalid id" }, { status: 404 });
   }
-  const projectId = idParse.data;
+  const id = idParse.data;
+
+  const supabase = createServiceRoleClient();
+  const { data: item } = await supabase.from("items").select("id").eq("id", id).maybeSingle();
+  if (item) {
+    return itemPatch(request, { params: Promise.resolve({ itemId: id }) });
+  }
 
   let json: unknown;
   try {
@@ -78,73 +65,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = patchBodySchema.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", details: z.treeifyError(parsed.error) },
-      { status: 400 },
-    );
-  }
+  const { data, error } = await supabase
+    .from("projects")
+    .update(json as Record<string, unknown>)
+    .eq("id", id)
+    .select("id, title, description, context_id, created_at, updated_at")
+    .single();
 
-  try {
-    const supabase = createServiceRoleClient();
-    const { data: existing, error: loadError } = await supabase
-      .from("projects")
-      .select("id, title_locked")
-      .eq("id", projectId)
-      .maybeSingle();
-
-    if (loadError) {
-      console.error("[PATCH /api/projects/:id] load", loadError);
-      return NextResponse.json({ error: "Failed to load project" }, { status: 500 });
-    }
-
-    if (!existing) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    if (existing.title_locked) {
-      return NextResponse.json(
-        {
-          error: "Project title is locked; description and title cannot be updated",
-          code: "TITLE_LOCKED",
-        },
-        { status: 409 },
-      );
-    }
-
-    const patch: Record<string, unknown> = {};
-    if (parsed.data.title !== undefined) {
-      patch.title = parsed.data.title;
-    }
-    if (parsed.data.description !== undefined) {
-      patch.description = parsed.data.description;
-    }
-    if (parsed.data.processing_template !== undefined) {
-      patch.processing_template = {
-        preset: parsed.data.processing_template.preset,
-        customInstructions:
-          parsed.data.processing_template.customInstructions?.trim() || null,
-      };
-    }
-
-    const { data, error } = await supabase
-      .from("projects")
-      .update(patch)
-      .eq("id", projectId)
-      .select(
-        "id, title, description, direction_files, title_locked, master_transcript, summary, processing_template, created_at, updated_at",
-      )
-      .single();
-
-    if (error || !data) {
-      console.error("[PATCH /api/projects/:id] update", error);
-      return NextResponse.json({ error: "Failed to update project" }, { status: 500 });
-    }
-
-    return NextResponse.json(data);
-  } catch (e) {
-    console.error("[PATCH /api/projects/:id]", e);
+  if (error || !data) {
     return NextResponse.json({ error: "Failed to update project" }, { status: 500 });
   }
+  return NextResponse.json(data);
 }

@@ -10,7 +10,6 @@ const bodySchema = z.object({
   topK: z.number().int().min(1).max(25).optional(),
 });
 
-/** Cosine similarity (1 − distance). Without a floor, any query still returns the K nearest chunks—even garbage—so weak matches are dropped. Override with SEARCH_MIN_SIMILARITY (0–1). */
 function readSearchMinSimilarity(): number {
   const raw = process.env.SEARCH_MIN_SIMILARITY?.trim();
   if (!raw) {
@@ -23,7 +22,6 @@ function readSearchMinSimilarity(): number {
   return Math.min(1, Math.max(0, n));
 }
 
-/** Strip ILIKE wildcards so user input cannot broaden the pattern. */
 function literalIlikeNeedle(query: string): string | null {
   const t = query
     .trim()
@@ -74,7 +72,7 @@ export async function POST(request: Request) {
     const needle = literalIlikeNeedle(query);
     let literalRows: {
       id: string;
-      project_id: string;
+      item_id: string;
       recording_id: string | null;
       chunk_text: string;
       metadata: unknown;
@@ -84,7 +82,7 @@ export async function POST(request: Request) {
       const pattern = `%${needle}%`;
       const { data: lit, error: litErr } = await supabase
         .from("transcript_chunks")
-        .select("id, project_id, recording_id, chunk_text, metadata")
+        .select("id, item_id, recording_id, chunk_text, metadata")
         .ilike("chunk_text", pattern)
         .limit(40);
 
@@ -115,7 +113,8 @@ export async function POST(request: Request) {
         text: row.chunk_text,
         metadata: meta,
         similarity: LITERAL_MATCH_SCORE,
-        projectId: row.project_id,
+        itemId: row.item_id,
+        projectId: row.item_id,
         recordingId: row.recording_id,
       };
       if (!existing) {
@@ -132,12 +131,12 @@ export async function POST(request: Request) {
     const minSimilarity = readSearchMinSimilarity();
     const passing = merged.filter(
       (c) =>
-        c.projectId &&
+        c.itemId &&
         (c.similarity >= minSimilarity || literalIdSet.has(c.chunkId)),
     );
 
     const vectorOnlyPassing = vectorChunks.filter(
-      (c) => c.projectId && c.similarity >= minSimilarity,
+      (c) => c.itemId && c.similarity >= minSimilarity,
     );
     const allBelowThreshold =
       vectorChunks.length > 0 &&
@@ -156,26 +155,49 @@ export async function POST(request: Request) {
     const maxOut = Math.min(50, Math.max(topK, 20));
     const ranked = passing.slice(0, maxOut);
 
-    const projectIds = [...new Set(ranked.map((c) => c.projectId).filter(Boolean))] as string[];
+    const itemIds = [...new Set(ranked.map((c) => c.itemId).filter(Boolean))] as string[];
     const recordingIds = [
       ...new Set(ranked.map((c) => c.recordingId).filter((id): id is string => Boolean(id))),
     ];
 
-    const projectTitleById = new Map<string, string>();
-    if (projectIds.length > 0) {
-      const { data: projects, error: projErr } = await supabase
+    const itemTitleById = new Map<string, string>();
+    const itemProjectIdById = new Map<string, string | null>();
+    if (itemIds.length > 0) {
+      const { data: items, error: itemErr } = await supabase
+        .from("items")
+        .select("id, title, project_id")
+        .in("id", itemIds);
+
+      if (itemErr) {
+        console.error("[POST /api/search] load items", itemErr);
+        return NextResponse.json({ error: "Failed to load item titles" }, { status: 500 });
+      }
+      for (const item of items ?? []) {
+        if (item?.id) {
+          const title = typeof item.title === "string" ? item.title.trim() : "";
+          itemTitleById.set(item.id, title || "Untitled item");
+          itemProjectIdById.set(item.id, item.project_id ?? null);
+        }
+      }
+    }
+
+    const parentProjectTitleById = new Map<string, string>();
+    const parentProjectIds = [
+      ...new Set(
+        [...itemProjectIdById.values()].filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (parentProjectIds.length > 0) {
+      const { data: projects } = await supabase
         .from("projects")
         .select("id, title")
-        .in("id", projectIds);
-
-      if (projErr) {
-        console.error("[POST /api/search] load projects", projErr);
-        return NextResponse.json({ error: "Failed to load project titles" }, { status: 500 });
-      }
+        .in("id", parentProjectIds);
       for (const p of projects ?? []) {
         if (p?.id) {
-          const title = typeof p.title === "string" ? p.title.trim() : "";
-          projectTitleById.set(p.id, title || "Untitled project");
+          parentProjectTitleById.set(
+            p.id,
+            typeof p.title === "string" && p.title.trim() ? p.title : "Untitled project",
+          );
         }
       }
     }
@@ -199,11 +221,20 @@ export async function POST(request: Request) {
     }
 
     const results = ranked.map((c) => {
-      const pid = c.projectId as string;
+      const iid = c.itemId as string;
       const rid = c.recordingId ?? undefined;
+      const parentProjectId = itemProjectIdById.get(iid) ?? null;
       return {
-        projectId: pid,
-        projectTitle: projectTitleById.get(pid) ?? "Untitled project",
+        itemId: iid,
+        itemTitle: itemTitleById.get(iid) ?? "Untitled item",
+        /** @deprecated Use itemId */
+        projectId: iid,
+        /** @deprecated Use itemTitle */
+        projectTitle: itemTitleById.get(iid) ?? "Untitled item",
+        parentProjectId,
+        parentProjectTitle: parentProjectId
+          ? parentProjectTitleById.get(parentProjectId) ?? null
+          : null,
         recordingId: rid,
         recordingCreatedAt: rid ? recordingCreatedAtById.get(rid) ?? null : null,
         chunkText: c.text,

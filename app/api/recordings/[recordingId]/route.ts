@@ -3,9 +3,9 @@ import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 
 const recordingIdSchema = z.uuid();
-const projectIdSchema = z.uuid();
+const itemIdSchema = z.uuid();
 
-/** Optional `?projectId=` ensures the recording belongs to that project (recommended for UI routes). */
+/** Optional `?itemId=` ensures the recording belongs to that item (recommended for UI routes). */
 export async function GET(
   request: Request,
   context: { params: Promise<{ recordingId: string }> },
@@ -18,14 +18,14 @@ export async function GET(
   const recordingId = idParse.data;
 
   const url = new URL(request.url);
-  const rawProjectId = url.searchParams.get("projectId");
-  let expectedProjectId: string | undefined;
-  if (rawProjectId) {
-    const p = projectIdSchema.safeParse(rawProjectId);
+  const rawItemId = url.searchParams.get("itemId") ?? url.searchParams.get("projectId");
+  let expectedItemId: string | undefined;
+  if (rawItemId) {
+    const p = itemIdSchema.safeParse(rawItemId);
     if (!p.success) {
-      return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid item id" }, { status: 400 });
     }
-    expectedProjectId = p.data;
+    expectedItemId = p.data;
   }
 
   try {
@@ -33,7 +33,7 @@ export async function GET(
     const { data: row, error } = await supabase
       .from("note_recordings")
       .select(
-        "id, project_id, status, audio_storage_path, audio_mime_type, duration_ms, transcript_text, transcription_raw, output_summary, output_summary_json, output_summary_debug, created_at, updated_at",
+        "id, item_id, status, audio_storage_path, audio_mime_type, duration_ms, transcript_text, cleaned_transcript_text, purpose_summary, transcription_raw, output_summary, output_summary_json, output_summary_debug, created_at, updated_at",
       )
       .eq("id", recordingId)
       .maybeSingle();
@@ -47,7 +47,7 @@ export async function GET(
       return NextResponse.json({ error: "Recording not found" }, { status: 404 });
     }
 
-    if (expectedProjectId && row.project_id !== expectedProjectId) {
+    if (expectedItemId && row.item_id !== expectedItemId) {
       return NextResponse.json({ error: "Recording not found" }, { status: 404 });
     }
 

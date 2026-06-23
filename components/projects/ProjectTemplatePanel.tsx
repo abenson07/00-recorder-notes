@@ -3,16 +3,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { patchProject } from "@/lib/api/projects";
+import { patchItem } from "@/lib/api/items";
 import type { ProcessingTemplate, TemplatePreset } from "@/lib/projects/processingTemplate";
 
 export function ProjectTemplatePanel({
+  itemId: itemIdProp,
   projectId,
   initial,
 }: {
-  projectId: string;
+  itemId?: string;
+  /** @deprecated Use itemId */
+  projectId?: string;
   initial: ProcessingTemplate;
 }) {
+  const itemId = itemIdProp ?? projectId ?? "";
   const router = useRouter();
   const queryClient = useQueryClient();
   const [preset, setPreset] = useState<TemplatePreset>(initial.preset);
@@ -28,7 +32,7 @@ export function ProjectTemplatePanel({
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
-      patchProject(projectId, {
+      patchItem(itemId, {
         processing_template: {
           preset,
           customInstructions: customInstructions.trim() || null,
@@ -36,7 +40,7 @@ export function ProjectTemplatePanel({
       }),
     onSuccess: async () => {
       setSaveError(null);
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["items"] });
       router.refresh();
     },
     onError: (e) => {

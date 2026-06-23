@@ -1,16 +1,21 @@
 export type GlobalSearchResult = {
-  projectId: string;
-  projectTitle: string;
+  itemId: string;
+  itemTitle: string;
+  parentProjectId: string | null;
+  parentProjectTitle: string | null;
   recordingId?: string;
   recordingCreatedAt: string | null;
   chunkText: string;
   score: number;
   metadata: Record<string, unknown> | null;
+  /** @deprecated Use itemId */
+  projectId: string;
+  /** @deprecated Use itemTitle */
+  projectTitle: string;
 };
 
 export type GlobalSearchResponse = {
   results: GlobalSearchResult[];
-  /** True when the index returned neighbors but all were below the similarity floor (random queries). */
   allBelowSimilarityThreshold?: boolean;
 };
 

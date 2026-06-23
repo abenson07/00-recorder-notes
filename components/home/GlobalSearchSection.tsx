@@ -54,19 +54,19 @@ function HighlightSnippet({ text, query }: { text: string; query: string }) {
   return <>{nodes}</>;
 }
 
-function groupByProject(results: GlobalSearchResult[]) {
+function groupByItem(results: GlobalSearchResult[]) {
   const order: string[] = [];
-  const map = new Map<string, { projectTitle: string; items: GlobalSearchResult[] }>();
+  const map = new Map<string, { itemTitle: string; hits: GlobalSearchResult[] }>();
   for (const r of results) {
-    if (!map.has(r.projectId)) {
-      order.push(r.projectId);
-      map.set(r.projectId, { projectTitle: r.projectTitle, items: [] });
+    if (!map.has(r.itemId)) {
+      order.push(r.itemId);
+      map.set(r.itemId, { itemTitle: r.itemTitle, hits: [] });
     }
-    map.get(r.projectId)!.items.push(r);
+    map.get(r.itemId)!.hits.push(r);
   }
   return order.map((id) => {
     const g = map.get(id)!;
-    return { projectId: id, projectTitle: g.projectTitle, items: g.items };
+    return { itemId: id, itemTitle: g.itemTitle, hits: g.hits };
   });
 }
 
@@ -108,7 +108,7 @@ export function GlobalSearchSection({
   });
 
   const grouped = useMemo(
-    () => (data?.results?.length ? groupByProject(data.results) : []),
+    () => (data?.results?.length ? groupByItem(data.results) : []),
     [data],
   );
   const activeSearch = debounced.length > 0;
@@ -124,7 +124,7 @@ export function GlobalSearchSection({
           type="search"
           name="q"
           autoComplete="off"
-          placeholder="Search across all projects…"
+          placeholder="Search across all items…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-700"
@@ -169,19 +169,24 @@ export function GlobalSearchSection({
           ) : (
             <ul className="flex flex-col gap-6">
               {grouped.map((g) => (
-                <li key={g.projectId}>
+                <li key={g.itemId}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    {g.projectTitle}
+                    {g.itemTitle}
+                    {g.hits[0]?.parentProjectTitle ? (
+                      <span className="ml-2 font-normal normal-case text-zinc-400">
+                        · {g.hits[0].parentProjectTitle}
+                      </span>
+                    ) : null}
                   </p>
                   <ul className="mt-2 flex flex-col gap-2">
-                    {g.items.map((r, idx) => {
+                    {g.hits.map((r, idx) => {
                       const href =
                         r.recordingId != null && r.recordingId !== ""
-                          ? `/projects/${r.projectId}/recordings/${r.recordingId}`
-                          : `/projects/${r.projectId}`;
+                          ? `/items/${r.itemId}/recordings/${r.recordingId}`
+                          : `/items/${r.itemId}`;
                       const when = formatRecordingTime(r.recordingCreatedAt);
                       return (
-                        <li key={`${r.projectId}-${r.recordingId ?? "p"}-${idx}-${r.score}`}>
+                        <li key={`${r.itemId}-${r.recordingId ?? "p"}-${idx}-${r.score}`}>
                           <Link
                             href={href}
                             className="block rounded-lg border border-zinc-200 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-950"
@@ -194,7 +199,7 @@ export function GlobalSearchSection({
                               </p>
                             ) : (
                               <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                                Project transcript
+                                Item transcript
                               </p>
                             )}
                             <p className="mt-1 line-clamp-4 text-sm text-zinc-800 dark:text-zinc-200">

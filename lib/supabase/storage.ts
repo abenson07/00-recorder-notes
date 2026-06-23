@@ -1,15 +1,14 @@
 import { getServerEnv } from "@/lib/env";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 
-/** Object key segment matches `note-000` convention: `…/audio.webm`. */
+/** Object key segment matches convention: `…/audio.webm`. */
 const RECORDING_AUDIO_OBJECT_NAME = "audio.webm";
 
 /**
- * Deterministic storage path for a recording’s audio object.
- * Parameter order matches `tasks/note-001.md`.
+ * Deterministic storage path for a recording's audio object.
  */
-export function getRecordingObjectPath(recordingId: string, projectId: string): string {
-  return `projects/${projectId}/recordings/${recordingId}/${RECORDING_AUDIO_OBJECT_NAME}`;
+export function getRecordingObjectPath(recordingId: string, itemId: string): string {
+  return `items/${itemId}/recordings/${recordingId}/${RECORDING_AUDIO_OBJECT_NAME}`;
 }
 
 export interface SignedUploadPayload {
@@ -21,11 +20,11 @@ export interface SignedUploadPayload {
 /** Signed upload URL + token for client `uploadToSignedUrl` / PUT flows. */
 export async function createRecordingSignedUpload(
   recordingId: string,
-  projectId: string,
+  itemId: string,
 ): Promise<SignedUploadPayload> {
   const env = getServerEnv();
   const supabase = createServiceRoleClient();
-  const objectPath = getRecordingObjectPath(recordingId, projectId);
+  const objectPath = getRecordingObjectPath(recordingId, itemId);
   const { data, error } = await supabase.storage
     .from(env.SUPABASE_STORAGE_BUCKET_AUDIO)
     .createSignedUploadUrl(objectPath, { upsert: true });

@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 
 export type CreateRecordingResponse = {
   recordingId: string;
+  itemId: string;
   audioStoragePath: string;
   storageBucket: string;
   signedUpload: {
@@ -12,13 +13,17 @@ export type CreateRecordingResponse = {
 };
 
 export async function createRecordingWithUploadInstructions(
-  projectId: string,
+  itemId: string,
   audioMimeType: string,
+  sourceFilename?: string,
 ): Promise<CreateRecordingResponse> {
-  const res = await fetch(`/api/projects/${projectId}/recordings`, {
+  const res = await fetch(`/api/items/${itemId}/recordings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ audioMimeType }),
+    body: JSON.stringify({
+      audioMimeType,
+      ...(sourceFilename ? { sourceFilename } : {}),
+    }),
   });
   const data: unknown = await res.json().catch(() => ({}));
   if (!res.ok || typeof data !== "object" || data === null) {
@@ -54,3 +59,5 @@ export async function uploadRecordingBlob(
     throw new Error(error.message || "Upload failed");
   }
 }
+
+export const OPENAI_MAX_AUDIO_BYTES = 25 * 1024 * 1024;

@@ -9,7 +9,7 @@ import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
 import { ProjectTemplatePanel } from "@/components/projects/ProjectTemplatePanel";
 import { RecordingsList } from "@/components/projects/RecordingsList";
-import { fetchProjectRecordingsClient } from "@/lib/api/projects";
+import { fetchItemRecordingsClient } from "@/lib/api/items";
 import { cn } from "@/lib/cn";
 import type { ProcessingTemplate } from "@/lib/projects/processingTemplate";
 import type { RecordingListItem, RecordingsSummary } from "@/lib/types";
@@ -60,7 +60,7 @@ function ListIcon({ className }: { className?: string }) {
 }
 
 export function ProjectDetailClient({
-  projectId,
+  projectId: itemId,
   title,
   description,
   titleLocked,
@@ -86,12 +86,12 @@ export function ProjectDetailClient({
   const [recordOpen, setRecordOpen] = useState(false);
 
   const recordingsQuery = useQuery({
-    queryKey: ["projectRecordings", projectId],
-    queryFn: () => fetchProjectRecordingsClient(projectId),
+    queryKey: ["itemRecordings", itemId],
+    queryFn: () => fetchItemRecordingsClient(itemId),
     initialData: initialRecordings,
   });
 
-  const displayTitle = title.trim() ? title : "Untitled project";
+  const displayTitle = title.trim() ? title : "Untitled item";
 
   return (
     <>
@@ -121,7 +121,7 @@ export function ProjectDetailClient({
         {dock === "overview" ? (
           <div className="flex flex-col gap-6">
             {!titleLocked ? (
-              <ProjectTemplatePanel projectId={projectId} initial={processingTemplate} />
+              <ProjectTemplatePanel itemId={itemId} initial={processingTemplate} />
             ) : null}
             <ProjectTabs masterTranscript={masterTranscript} summary={summary} />
           </div>
@@ -130,7 +130,7 @@ export function ProjectDetailClient({
         {dock === "chat" ? (
           <section className="min-h-[320px] flex-1 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
             <h2 className="sr-only">Chat</h2>
-            <ChatPanel projectId={projectId} />
+            <ChatPanel itemId={itemId} />
           </section>
         ) : null}
 
@@ -140,7 +140,7 @@ export function ProjectDetailClient({
               Recordings
             </h2>
             <RecordingsList
-              projectId={projectId}
+              itemId={itemId}
               items={recordingsQuery.data ?? []}
             />
           </section>
@@ -149,15 +149,15 @@ export function ProjectDetailClient({
 
       <RecordModal
         open={recordOpen}
-        projectId={projectId}
+        itemId={itemId}
         onOpenChange={setRecordOpen}
         onUploaded={async (recordingId) => {
           setRecordOpen(false);
-          await queryClient.invalidateQueries({ queryKey: ["projects"] });
+          await queryClient.invalidateQueries({ queryKey: ["items"] });
           await queryClient.invalidateQueries({
-            queryKey: ["projectRecordings", projectId],
+            queryKey: ["itemRecordings", itemId],
           });
-          router.push(`/projects/${projectId}/recordings/${recordingId}`);
+          router.push(`/items/${itemId}/recordings/${recordingId}`);
           router.refresh();
         }}
       />

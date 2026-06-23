@@ -1,4 +1,4 @@
-import { OpenAITranscriptionError } from "@/lib/openai/transcribe";
+import { llmChatComplete } from "@/lib/llm/chatComplete";
 import type { TemplatePreset } from "@/lib/projects/processingTemplate";
 
 function systemPromptForPreset(preset: TemplatePreset): string {
@@ -16,20 +16,19 @@ function systemPromptForPreset(preset: TemplatePreset): string {
 }
 
 export async function refreshProjectSummary({
-  apiKey,
-  baseUrl,
   previousSummary,
   newTranscriptText,
   templatePreset = "summary",
   customInstructions,
 }: {
-  apiKey: string;
-  baseUrl: string;
   previousSummary: string;
-  /** Plain transcript for this recording (not the full master transcript). */
   newTranscriptText: string;
   templatePreset?: TemplatePreset;
   customInstructions?: string | null;
+  /** @deprecated Unused */
+  apiKey?: string;
+  /** @deprecated Unused */
+  baseUrl?: string;
 }): Promise<string> {
   const trimmedPrev = (previousSummary ?? "").trim();
   const excerpt = newTranscriptText.trim().slice(0, 14_000);
@@ -38,71 +37,19 @@ export async function refreshProjectSummary({
       ? `\n\nProject direction:\n${customInstructions.trim()}`
       : "";
 
-  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
-  const body = {
-    model: "gpt-4o-mini",
+  const out = await llmChatComplete({
     temperature: 0.2,
     messages: [
       {
-        role: "system" as const,
+        role: "system",
         content: systemPromptForPreset(templatePreset),
       },
       {
-        role: "user" as const,
+        role: "user",
         content: `Previous ${templatePreset === "tasks" ? "task list" : "outline"}:\n${trimmedPrev || "(none yet)"}\n\nNew transcript:\n${excerpt || "(empty)"}${extra}\n\nReturn the updated ${templatePreset === "tasks" ? "task list" : "outline"}.`,
       },
     ],
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
   });
 
-  const text = await response.text();
-  let parsed: unknown;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
-  }
-
-  if (!response.ok) {
-    const detail =
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "error" in parsed &&
-      typeof (parsed as { error?: { message?: string } }).error?.message === "string"
-        ? (parsed as { error: { message: string } }).error.message
-        : text || response.statusText;
-
-    if (response.status === 401) {
-      throw new OpenAITranscriptionError(
-        "OpenAI authentication failed",
-        401,
-        "OPENAI_UNAUTHORIZED",
-      );
-    }
-    if (response.status === 429) {
-      throw new OpenAITranscriptionError(
-        "OpenAI rate limit exceeded",
-        429,
-        "OPENAI_RATE_LIMIT",
-      );
-    }
-    throw new OpenAITranscriptionError(
-      detail.slice(0, 500) || `OpenAI chat failed (${response.status})`,
-      response.status || 502,
-      "OPENAI_SUMMARY_ERROR",
-    );
-  }
-
-  const content = (parsed as { choices?: { message?: { content?: string } }[] })?.choices?.[0]
-    ?.message?.content;
-  const out = typeof content === "string" ? content.trim() : "";
-  return out || trimmedPrev;
+  return out.trim() || trimmedPrev;
 }

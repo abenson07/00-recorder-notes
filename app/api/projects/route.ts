@@ -2,27 +2,27 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 
-const MASTER_PREVIEW_LEN = 240;
-
 const postBodySchema = z.object({
   title: z.string().max(2000).optional(),
   description: z.string().max(8000).nullable().optional(),
+  context_id: z.string().uuid().nullable().optional(),
 });
 
 type ProjectListRow = {
   id: string;
   title: string;
   description: string | null;
+  context_id: string | null;
   updated_at: string;
-  master_transcript: string;
-  note_recordings: { count: number }[] | null;
+  items: { count: number }[] | null;
 };
 
-function recordingsCountFromRow(row: ProjectListRow): number {
-  const first = row.note_recordings?.[0];
+function itemCountFromRow(row: ProjectListRow): number {
+  const first = row.items?.[0];
   return typeof first?.count === "number" ? first.count : 0;
 }
 
+/** List parent projects (groups of items). */
 export async function GET() {
   try {
     const supabase = createServiceRoleClient();
@@ -33,9 +33,9 @@ export async function GET() {
         id,
         title,
         description,
+        context_id,
         updated_at,
-        master_transcript,
-        note_recordings (count)
+        items (count)
       `,
       )
       .order("updated_at", { ascending: false });
@@ -46,17 +46,14 @@ export async function GET() {
     }
 
     const rows = (data ?? []) as ProjectListRow[];
-    const payload = rows.map((row) => {
-      const mt = row.master_transcript ?? "";
-      return {
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        updatedAt: row.updated_at,
-        masterTranscriptPreview: mt.slice(0, MASTER_PREVIEW_LEN),
-        recordingsCount: recordingsCountFromRow(row),
-      };
-    });
+    const payload = rows.map((row) => ({
+      id: row.id,
+      title: row.title.trim() ? row.title : "Untitled project",
+      description: row.description,
+      contextId: row.context_id,
+      updatedAt: row.updated_at,
+      itemsCount: itemCountFromRow(row),
+    }));
 
     return NextResponse.json(payload);
   } catch (e) {
@@ -92,13 +89,9 @@ export async function POST(request: Request) {
       .insert({
         title,
         description,
-        title_locked: false,
-        master_transcript: "",
-        summary: "",
+        context_id: parsed.data.context_id ?? null,
       })
-      .select(
-        "id, title, description, direction_files, title_locked, master_transcript, summary, created_at, updated_at",
-      )
+      .select("id, title, description, context_id, created_at, updated_at")
       .single();
 
     if (error || !data) {

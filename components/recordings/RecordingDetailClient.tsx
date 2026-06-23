@@ -76,13 +76,16 @@ function outputSummaryBody(recording: Recording): string {
 
 export function RecordingDetailClient({
   projectId,
+  itemId: itemIdProp,
   recordingId,
   initialRecording,
 }: {
-  projectId: string;
+  projectId?: string;
+  itemId?: string;
   recordingId: string;
   initialRecording: Recording;
 }) {
+  const itemId = itemIdProp ?? projectId ?? "";
   const queryClient = useQueryClient();
   const [startError, setStartError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("summary");
@@ -90,8 +93,8 @@ export function RecordingDetailClient({
   const autoStartSentRef = useRef(false);
 
   const q = useQuery({
-    queryKey: ["recording", projectId, recordingId],
-    queryFn: () => fetchRecordingJson(recordingId, projectId),
+    queryKey: ["recording", itemId, recordingId],
+    queryFn: () => fetchRecordingJson(recordingId, itemId),
     initialData: initialRecording,
     refetchInterval: (query) => {
       const s = query.state.data?.status;
@@ -126,7 +129,7 @@ export function RecordingDetailClient({
       }
       setStartError(null);
       await queryClient.invalidateQueries({
-        queryKey: ["recording", projectId, recordingId],
+        queryKey: ["recording", itemId, recordingId],
       });
     },
     onError: (e) => {
@@ -311,7 +314,7 @@ export function RecordingDetailClient({
       <AudioPlayer
         label="This recording"
         recordingId={recordingId}
-        projectId={projectId}
+        itemId={itemId}
         mimeType={recording.audio_mime_type}
       />
     </>

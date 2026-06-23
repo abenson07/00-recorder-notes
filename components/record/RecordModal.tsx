@@ -5,15 +5,19 @@ import { WaveformRecorder } from "@/components/record/WaveformRecorder";
 
 export function RecordModal({
   open,
+  itemId: itemIdProp,
   projectId,
   onOpenChange,
   onUploaded,
 }: {
   open: boolean;
-  projectId: string | null;
+  itemId?: string | null;
+  /** @deprecated Use itemId */
+  projectId?: string | null;
   onOpenChange: (open: boolean) => void;
   onUploaded: (recordingId: string) => void;
 }) {
+  const itemId = itemIdProp ?? projectId ?? null;
   useEffect(() => {
     if (!open) {
       return;
@@ -27,7 +31,7 @@ export function RecordModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
-  if (!open || !projectId) {
+  if (!open || !itemId) {
     return null;
   }
 
@@ -52,7 +56,7 @@ export function RecordModal({
           New recording
         </h2>
         <WaveformRecorder
-          projectId={projectId}
+          itemId={itemId}
           onComplete={onUploaded}
           onRequestClose={() => onOpenChange(false)}
         />

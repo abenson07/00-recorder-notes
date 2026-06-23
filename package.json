@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "smoke:note-001": "node scripts/smoke-note-001.mjs",
-    "smoke:note-005-retrieve": "node scripts/smoke-note-005-retrieve.mjs"
+    "smoke:note-005-retrieve": "node scripts/smoke-note-005-retrieve.mjs",
+    "db:probe": "node scripts/db-probe-tables.mjs",
+    "db:migrate-note-008": "node scripts/db-apply-note-008.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.0",
+    "pg": "^8.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

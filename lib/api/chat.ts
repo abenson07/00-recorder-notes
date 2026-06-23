@@ -5,8 +5,8 @@ export type ChatSource = {
   similarity: number;
 };
 
-export async function postProjectChat(
-  projectId: string,
+export async function postItemChat(
+  itemId: string,
   message: string,
 ): Promise<{
   reply: string;
@@ -15,7 +15,7 @@ export async function postProjectChat(
   usedTranscriptFallback: boolean;
 }> {
   const res = await fetch(
-    `/api/projects/${encodeURIComponent(projectId)}/chat`,
+    `/api/items/${encodeURIComponent(itemId)}/chat`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -41,3 +41,6 @@ export async function postProjectChat(
     usedTranscriptFallback: Boolean(data.usedTranscriptFallback),
   };
 }
+
+/** @deprecated Use postItemChat */
+export const postProjectChat = postItemChat;

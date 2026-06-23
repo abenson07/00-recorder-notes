@@ -5,14 +5,18 @@ import { useEffect, useState } from "react";
 function AudioPlayerLoaded({
   label,
   recordingId,
+  itemId,
   projectId,
   mimeType,
 }: {
   label: string;
   recordingId: string;
+  itemId?: string;
+  /** @deprecated Use itemId */
   projectId?: string;
   mimeType?: string | null;
 }) {
+  const scopeId = itemId ?? projectId;
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,8 +24,8 @@ function AudioPlayerLoaded({
   useEffect(() => {
     let cancelled = false;
 
-    const qs = projectId
-      ? `?${new URLSearchParams({ projectId }).toString()}`
+    const qs = scopeId
+      ? `?${new URLSearchParams({ itemId: scopeId }).toString()}`
       : "";
 
     fetch(
@@ -57,7 +61,7 @@ function AudioPlayerLoaded({
     return () => {
       cancelled = true;
     };
-  }, [recordingId, projectId]);
+  }, [recordingId, scopeId]);
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
@@ -86,12 +90,14 @@ function AudioPlayerLoaded({
 export function AudioPlayer({
   label = "Audio",
   recordingId,
+  itemId,
   projectId,
   mimeType,
 }: {
   label?: string;
   recordingId?: string;
-  /** When set, the signed-audio API verifies the recording belongs to this project. */
+  itemId?: string;
+  /** @deprecated Use itemId */
   projectId?: string;
   mimeType?: string | null;
 }) {
@@ -106,10 +112,10 @@ export function AudioPlayer({
 
   return (
     <AudioPlayerLoaded
-      key={`${recordingId}:${projectId ?? ""}`}
+      key={`${recordingId}:${itemId ?? projectId ?? ""}`}
       label={label}
       recordingId={recordingId}
-      projectId={projectId}
+      itemId={itemId ?? projectId}
       mimeType={mimeType}
     />
   );

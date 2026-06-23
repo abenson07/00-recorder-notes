@@ -1,4 +1,5 @@
 import { OpenAITranscriptionError } from "@/lib/openai/transcribe";
+import { llmChatComplete } from "@/lib/llm/chatComplete";
 import type { ProcessingTemplate } from "@/lib/projects/processingTemplate";
 import { z } from "zod";
 
@@ -172,15 +173,15 @@ async function postChatCompletionText(options: {
 }
 
 export async function applyRecordingProcessingTemplate({
-  apiKey,
-  baseUrl,
   template,
   transcriptText,
 }: {
-  apiKey: string;
-  baseUrl: string;
   template: ProcessingTemplate;
   transcriptText: string;
+  /** @deprecated Unused */
+  apiKey?: string;
+  /** @deprecated Unused */
+  baseUrl?: string;
 }): Promise<RecordingTemplateApplyResult> {
   const excerpt = transcriptText.trim().slice(0, 14_000);
   const extra = template.customInstructions?.trim()
@@ -188,10 +189,7 @@ export async function applyRecordingProcessingTemplate({
     : "";
 
   if (template.preset === "tasks") {
-    const { rawText, parsed } = await postChatCompletionJson({
-      apiKey,
-      baseUrl,
-      model: "gpt-4o-mini",
+    const rawText = await llmChatComplete({
       temperature: 0.2,
       messages: [
         {
@@ -204,8 +202,21 @@ export async function applyRecordingProcessingTemplate({
           content: `Transcript:\n${excerpt || "(empty)"}${extra}`,
         },
       ],
-      responseFormatJson: true,
     });
+
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      const match = rawText.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]);
+        } catch {
+          parsed = null;
+        }
+      }
+    }
 
     const validated = tasksOutputPayloadSchema.safeParse(parsed);
     if (validated.success) {
@@ -230,10 +241,7 @@ export async function applyRecordingProcessingTemplate({
     };
   }
 
-  const outline = await postChatCompletionText({
-    apiKey,
-    baseUrl,
-    model: "gpt-4o-mini",
+  const outline = await llmChatComplete({
     temperature: 0.25,
     messages: [
       {

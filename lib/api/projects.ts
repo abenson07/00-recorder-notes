@@ -1,15 +1,15 @@
-import type { Project, RecordingListItem } from "@/lib/types";
+import type { Project } from "@/lib/types";
 
 type ProjectsListApiRow = {
   id: string;
   title: string;
   description: string | null;
+  contextId: string | null;
   updatedAt: string;
-  masterTranscriptPreview: string;
-  recordingsCount: number;
+  itemsCount: number;
 };
 
-/** Client-only: list projects from `GET /api/projects`. */
+/** Client-only: list parent projects from `GET /api/projects`. */
 export async function fetchProjects(): Promise<Project[]> {
   const res = await fetch("/api/projects");
   if (!res.ok) {
@@ -21,31 +21,33 @@ export async function fetchProjects(): Promise<Project[]> {
     id: row.id,
     title: row.title.trim() ? row.title : "Untitled project",
     description: row.description,
-    direction_files: null,
-    title_locked: false,
-    master_transcript: row.masterTranscriptPreview,
-    summary: "",
+    context_id: row.contextId,
     created_at: row.updatedAt,
     updated_at: row.updatedAt,
   }));
 }
 
-/** Create a placeholder project (empty title) before the first save/transcript. */
-export async function createPlaceholderProject(): Promise<string> {
+export async function createProject(options?: {
+  title?: string;
+  description?: string | null;
+}): Promise<Project> {
   const res = await fetch("/api/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: "" }),
+    body: JSON.stringify({
+      title: options?.title ?? "",
+      description: options?.description ?? null,
+    }),
   });
   const data: unknown = await res.json().catch(() => ({}));
-  if (!res.ok || typeof data !== "object" || data === null || !("id" in data)) {
+  if (!res.ok) {
     const err =
       typeof data === "object" && data !== null && "error" in data
         ? String((data as { error?: unknown }).error)
         : "Could not create project";
     throw new Error(err);
   }
-  return String((data as { id: string }).id);
+  return data as Project;
 }
 
 export async function patchProject(
@@ -53,10 +55,7 @@ export async function patchProject(
   patch: {
     title?: string;
     description?: string | null;
-    processing_template?: {
-      preset: "summary" | "tasks";
-      customInstructions?: string | null;
-    };
+    context_id?: string | null;
   },
 ): Promise<Project> {
   const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
@@ -75,16 +74,8 @@ export async function patchProject(
   return data as Project;
 }
 
-export async function fetchProjectRecordingsClient(
-  projectId: string,
-): Promise<RecordingListItem[]> {
-  const res = await fetch(
-    `/api/projects/${encodeURIComponent(projectId)}/recordings`,
-    { cache: "no-store" },
-  );
-  if (!res.ok) {
-    throw new Error("Could not load recordings");
-  }
-  const data = (await res.json()) as { recordings?: RecordingListItem[] };
-  return Array.isArray(data.recordings) ? data.recordings : [];
+/** @deprecated Use createPlaceholderItem from lib/api/items */
+export async function createPlaceholderProject(): Promise<string> {
+  const { createPlaceholderItem } = await import("@/lib/api/items");
+  return createPlaceholderItem();
 }

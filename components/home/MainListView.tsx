@@ -6,7 +6,8 @@ import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { GlobalSearchSection } from "@/components/home/GlobalSearchSection";
 import { ProjectList } from "@/components/projects/ProjectList";
-import { createPlaceholderProject, fetchProjects } from "@/lib/api/projects";
+import { createPlaceholderItem } from "@/lib/api/items";
+import { fetchProjects } from "@/lib/api/projects";
 import { RecordButton } from "@/components/record/RecordButton";
 import { RecordModal } from "@/components/record/RecordModal";
 
@@ -14,7 +15,7 @@ export function MainListView() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [recordOpen, setRecordOpen] = useState(false);
-  const [recordProjectId, setRecordProjectId] = useState<string | null>(null);
+  const [recordItemId, setRecordItemId] = useState<string | null>(null);
   const [recordSessionError, setRecordSessionError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
@@ -28,8 +29,8 @@ export function MainListView() {
     setRecordSessionError(null);
     setCreatingProject(true);
     try {
-      const id = await createPlaceholderProject();
-      setRecordProjectId(id);
+      const id = await createPlaceholderItem();
+      setRecordItemId(id);
       setRecordOpen(true);
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
     } catch (e) {
@@ -50,7 +51,7 @@ export function MainListView() {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col">
+    <div className="relative hidden flex-1 flex-col md:flex">
       {recordSessionError ? (
         <div className="mx-auto w-full max-w-3xl px-4 pt-6">
           <p
@@ -68,7 +69,7 @@ export function MainListView() {
             Projects
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Record voice notes; transcripts roll up per project.
+            Record voice notes; group items into projects on mobile or desktop.
           </p>
         </header>
 
@@ -107,20 +108,21 @@ export function MainListView() {
 
       <RecordModal
         open={recordOpen}
-        projectId={recordProjectId}
+        itemId={recordItemId}
         onOpenChange={(next) => {
           setRecordOpen(next);
           if (!next) {
-            setRecordProjectId(null);
+            setRecordItemId(null);
           }
         }}
         onUploaded={async (recordingId) => {
-          const pid = recordProjectId;
+          const iid = recordItemId;
           setRecordOpen(false);
-          setRecordProjectId(null);
+          setRecordItemId(null);
           await queryClient.invalidateQueries({ queryKey: ["projects"] });
-          if (pid) {
-            router.push(`/projects/${pid}/recordings/${recordingId}`);
+          await queryClient.invalidateQueries({ queryKey: ["items"] });
+          if (iid) {
+            router.push(`/items/${iid}/recordings/${recordingId}`);
           }
         }}
       />

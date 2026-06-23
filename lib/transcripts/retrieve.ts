@@ -5,6 +5,8 @@ export type RetrievedChunk = {
   text: string;
   metadata: Record<string, unknown> | null;
   similarity: number;
+  itemId?: string;
+  /** @deprecated Use itemId */
   projectId?: string;
   recordingId?: string | null;
 };
@@ -14,11 +16,13 @@ type MatchRow = {
   chunk_text: string;
   metadata: unknown;
   similarity: number;
+  item_id?: string;
   project_id?: string;
   recording_id?: string | null;
 };
 
 function rowToChunk(row: MatchRow): RetrievedChunk {
+  const itemId = row.item_id ?? row.project_id;
   return {
     chunkId: row.chunk_id,
     text: row.chunk_text,
@@ -29,26 +33,27 @@ function rowToChunk(row: MatchRow): RetrievedChunk {
         ? (row.metadata as Record<string, unknown>)
         : null,
     similarity: row.similarity,
-    projectId: row.project_id,
+    itemId,
+    projectId: itemId,
     recordingId: row.recording_id ?? null,
   };
 }
 
-/** Embed query with caller’s embedding; runs pgvector RPC. */
-export async function retrieveProjectChunks(
+/** Embed query with caller's embedding; runs pgvector RPC scoped to an item. */
+export async function retrieveItemChunks(
   supabase: SupabaseClient,
-  projectId: string,
+  itemId: string,
   queryEmbedding: number[],
   topK: number,
 ): Promise<RetrievedChunk[]> {
-  const { data, error } = await supabase.rpc("match_project_chunks", {
+  const { data, error } = await supabase.rpc("match_item_chunks", {
     query_embedding: queryEmbedding,
-    match_project_id: projectId,
+    match_item_id: itemId,
     match_count: topK,
   });
 
   if (error) {
-    console.error("[retrieveProjectChunks]", error);
+    console.error("[retrieveItemChunks]", error);
     throw new Error(error.message || "Retrieval failed");
   }
 
@@ -57,6 +62,16 @@ export async function retrieveProjectChunks(
   }
 
   return (data as MatchRow[]).map(rowToChunk);
+}
+
+/** @deprecated Use retrieveItemChunks */
+export async function retrieveProjectChunks(
+  supabase: SupabaseClient,
+  projectId: string,
+  queryEmbedding: number[],
+  topK: number,
+): Promise<RetrievedChunk[]> {
+  return retrieveItemChunks(supabase, projectId, queryEmbedding, topK);
 }
 
 export async function retrieveGlobalChunks(

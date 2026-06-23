@@ -8,14 +8,14 @@ import { chunkTranscriptText } from "@/lib/transcripts/chunkText";
  */
 export async function ingestRecordingTranscriptChunks({
   supabase,
-  projectId,
+  itemId,
   recordingId,
   transcriptText,
   openaiApiKey,
   openaiBaseUrl,
 }: {
   supabase: SupabaseClient;
-  projectId: string;
+  itemId: string;
   recordingId: string;
   transcriptText: string;
   openaiApiKey: string;
@@ -50,7 +50,7 @@ export async function ingestRecordingTranscriptChunks({
     const { data: chunkRow, error: insChunkErr } = await supabase
       .from("transcript_chunks")
       .insert({
-        project_id: projectId,
+        item_id: itemId,
         recording_id: recordingId,
         source_type: "recording_transcript",
         chunk_text: parts[i],

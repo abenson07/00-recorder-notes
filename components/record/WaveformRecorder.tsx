@@ -48,16 +48,20 @@ function userFacingMicError(err: unknown): string {
 }
 
 export function WaveformRecorder({
+  itemId: itemIdProp,
   projectId,
   onComplete,
   onRequestClose,
   className,
 }: {
-  projectId: string;
+  itemId?: string;
+  /** @deprecated Use itemId */
+  projectId?: string;
   onComplete: (recordingId: string) => void;
   onRequestClose: () => void;
   className?: string;
 }) {
+  const itemId = itemIdProp ?? projectId ?? "";
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -312,7 +316,7 @@ export function WaveformRecorder({
     try {
       let instructions = instructionsRef.current;
       if (!instructions) {
-        instructions = await createRecordingWithUploadInstructions(projectId, mime);
+        instructions = await createRecordingWithUploadInstructions(itemId, mime);
         instructionsRef.current = instructions;
       }
       await uploadRecordingBlob(instructions, blob, mime);
@@ -322,7 +326,7 @@ export function WaveformRecorder({
       setErrorMessage(msg);
       setPhase("error");
     }
-  }, [onComplete, projectId]);
+  }, [onComplete, itemId]);
 
   const resetAll = useCallback(() => {
     teardownCapture();

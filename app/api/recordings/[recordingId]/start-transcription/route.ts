@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { applyRecordingProcessingTemplate } from "@/lib/openai/recordingOutput";
+import { refreshOpenOutputsForItem } from "@/lib/openai/outputs";
 import { refreshProjectSummary } from "@/lib/openai/projectSummary";
+import {
+  analyzePurpose,
+  cleanTranscript,
+  generateItemTitle,
+} from "@/lib/openai/transcriptProcessing";
 import {
   OPENAI_MAX_AUDIO_BYTES,
   OpenAITranscriptionError,
@@ -10,6 +16,8 @@ import {
 import { parseProcessingTemplate } from "@/lib/projects/processingTemplate";
 import { createServiceRoleClient } from "@/lib/supabase/serverAdmin";
 import { ingestRecordingTranscriptChunks } from "@/lib/transcripts/ingestRecordingChunks";
+import { insertTasksFromPayload } from "@/lib/tasks/insertTasks";
+import { tasksOutputPayloadSchema } from "@/lib/openai/recordingOutput";
 
 export const maxDuration = 300;
 
@@ -45,7 +53,7 @@ export async function POST(
   const { data: recording, error: fetchError } = await supabase
     .from("note_recordings")
     .select(
-      "id, project_id, status, audio_storage_path, audio_mime_type, transcript_text",
+      "id, item_id, status, audio_storage_path, audio_mime_type, transcript_text",
     )
     .eq("id", recordingId)
     .maybeSingle();
@@ -59,9 +67,9 @@ export async function POST(
     return NextResponse.json({ error: "Recording not found" }, { status: 404 });
   }
 
-  if (!recording.project_id) {
+  if (!recording.item_id) {
     return NextResponse.json(
-      { error: "Recording has no project; cannot update master transcript", code: "NO_PROJECT" },
+      { error: "Recording has no item; cannot update master transcript", code: "NO_ITEM" },
       { status: 400 },
     );
   }
@@ -166,7 +174,7 @@ export async function POST(
       .eq("id", recordingId);
     return NextResponse.json(
       {
-        error: `Audio exceeds OpenAI’s ${OPENAI_MAX_AUDIO_BYTES / (1024 * 1024)} MB per-file limit. Compress, shorten, or split the recording.`,
+        error: `Audio exceeds OpenAI's ${OPENAI_MAX_AUDIO_BYTES / (1024 * 1024)} MB per-file limit. Compress, shorten, or split the recording.`,
         code: "AUDIO_TOO_LARGE",
         maxBytes: OPENAI_MAX_AUDIO_BYTES,
         actualBytes: byteSize,
@@ -188,39 +196,109 @@ export async function POST(
       filename: fileName,
     });
 
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("id, master_transcript, summary, processing_template")
-      .eq("id", recording.project_id)
+    const { data: item, error: itemError } = await supabase
+      .from("items")
+      .select("id, title, title_locked, master_transcript, summary, processing_template, project_id")
+      .eq("id", recording.item_id)
       .maybeSingle();
 
-    if (projectError || !project) {
-      console.error("[start-transcription] load project", projectError);
+    if (itemError || !item) {
+      console.error("[start-transcription] load item", itemError);
       await supabase
         .from("note_recordings")
         .update({ status: "failed", updated_at: new Date().toISOString() })
         .eq("id", recordingId);
-      return NextResponse.json({ error: "Project not found" }, { status: 500 });
+      return NextResponse.json({ error: "Item not found" }, { status: 500 });
     }
 
-    const block = `\n\n[Recording ${recordingId}]\n${text}\n`;
-    const masterTranscript = (project.master_transcript ?? "").trimEnd() + block;
+    let contextMd: string | null = null;
+    let projectDescription: string | null = null;
+    if (item.project_id) {
+      const { data: parentProject } = await supabase
+        .from("projects")
+        .select("description, context_id")
+        .eq("id", item.project_id)
+        .maybeSingle();
+      projectDescription = parentProject?.description ?? null;
+      if (parentProject?.context_id) {
+        const { data: ctx } = await supabase
+          .from("contexts")
+          .select("content_md")
+          .eq("id", parentProject.context_id)
+          .maybeSingle();
+        contextMd = ctx?.content_md ?? null;
+      }
+    }
 
-    const template = parseProcessingTemplate(project.processing_template);
+    let purposeSummary = "";
+    try {
+      purposeSummary = await analyzePurpose({
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_BASE_URL,
+        transcriptText: text,
+        contextMd,
+        projectDescription,
+      });
+    } catch (e) {
+      console.error("[start-transcription] purpose analysis", e);
+      purposeSummary = text.trim().slice(0, 280);
+    }
 
-    let summaryNext = project.summary ?? "";
+    const { count: priorRecordingCount } = await supabase
+      .from("note_recordings")
+      .select("id", { count: "exact", head: true })
+      .eq("item_id", recording.item_id)
+      .eq("status", "transcribed");
+
+    const isFirstRecording = (priorRecordingCount ?? 0) === 0;
+    if (isFirstRecording && !item.title?.trim() && !item.title_locked) {
+      try {
+        const generatedTitle = await generateItemTitle({
+          apiKey: env.OPENAI_API_KEY,
+          baseUrl: env.OPENAI_BASE_URL,
+          purposeSummary,
+        });
+        await supabase
+          .from("items")
+          .update({ title: generatedTitle, updated_at: new Date().toISOString() })
+          .eq("id", recording.item_id);
+      } catch (e) {
+        console.error("[start-transcription] title generation", e);
+      }
+    }
+
+    let cleanedText = text;
+    try {
+      cleanedText = await cleanTranscript({
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_BASE_URL,
+        rawTranscript: text,
+        purposeSummary,
+        contextMd,
+        projectDescription,
+      });
+    } catch (e) {
+      console.error("[start-transcription] clean transcript", e);
+    }
+
+    const block = `\n\n[Recording ${recordingId}]\n${cleanedText}\n`;
+    const masterTranscript = (item.master_transcript ?? "").trimEnd() + block;
+
+    const template = parseProcessingTemplate(item.processing_template);
+
+    let summaryNext = item.summary ?? "";
     try {
       summaryNext = await refreshProjectSummary({
         apiKey: env.OPENAI_API_KEY,
         baseUrl: env.OPENAI_BASE_URL,
-        previousSummary: project.summary ?? "",
-        newTranscriptText: text,
+        previousSummary: item.summary ?? "",
+        newTranscriptText: cleanedText,
         templatePreset: template.preset,
         customInstructions: template.customInstructions,
       });
     } catch (e) {
       console.error("[start-transcription] summary refresh", e);
-      summaryNext = project.summary ?? "";
+      summaryNext = item.summary ?? "";
     }
 
     let output_summary = "";
@@ -231,35 +309,48 @@ export async function POST(
         apiKey: env.OPENAI_API_KEY,
         baseUrl: env.OPENAI_BASE_URL,
         template,
-        transcriptText: text,
+        transcriptText: cleanedText,
       });
       output_summary = out.output_summary;
       output_summary_json = out.output_summary_json;
       output_summary_debug = out.output_summary_debug;
+
+      if (out.output_summary_json && template.preset === "tasks") {
+        const validated = tasksOutputPayloadSchema.safeParse(out.output_summary_json);
+        if (validated.success) {
+          await insertTasksFromPayload({
+            supabase,
+            payload: validated.data,
+            itemId: recording.item_id,
+            projectId: item.project_id,
+            sourceRecordingId: recordingId,
+          });
+        }
+      }
     } catch (e) {
       console.error("[start-transcription] recording template output", e);
-      const clip = text.trim().slice(0, 500);
-      output_summary = `Could not generate template output (${e instanceof Error ? e.message : "error"}). Transcript preview:\n\n${clip}${text.trim().length > 500 ? "…" : ""}`;
+      const clip = cleanedText.trim().slice(0, 500);
+      output_summary = `Could not generate template output (${e instanceof Error ? e.message : "error"}). Transcript preview:\n\n${clip}${cleanedText.trim().length > 500 ? "…" : ""}`;
       output_summary_json = null;
       output_summary_debug = null;
     }
 
-    const { error: projectUpdateError } = await supabase
-      .from("projects")
+    const { error: itemUpdateError } = await supabase
+      .from("items")
       .update({
         master_transcript: masterTranscript,
         summary: summaryNext,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", recording.project_id);
+      .eq("id", recording.item_id);
 
-    if (projectUpdateError) {
-      console.error("[start-transcription] update project", projectUpdateError);
+    if (itemUpdateError) {
+      console.error("[start-transcription] update item", itemUpdateError);
       await supabase
         .from("note_recordings")
         .update({ status: "failed", updated_at: new Date().toISOString() })
         .eq("id", recordingId);
-      return NextResponse.json({ error: "Failed to update project transcript" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to update item transcript" }, { status: 500 });
     }
 
     const { error: recordingUpdateError } = await supabase
@@ -267,6 +358,8 @@ export async function POST(
       .update({
         status: "transcribed",
         transcript_text: text,
+        cleaned_transcript_text: cleanedText,
+        purpose_summary: purposeSummary,
         transcription_raw: raw,
         output_summary,
         output_summary_json,
@@ -283,9 +376,9 @@ export async function POST(
     try {
       await ingestRecordingTranscriptChunks({
         supabase,
-        projectId: recording.project_id,
+        itemId: recording.item_id,
         recordingId,
-        transcriptText: text,
+        transcriptText: cleanedText,
         openaiApiKey: env.OPENAI_API_KEY,
         openaiBaseUrl: env.OPENAI_BASE_URL,
       });
@@ -293,11 +386,24 @@ export async function POST(
       console.error("[start-transcription] chunk ingest", ingestErr);
     }
 
+    try {
+      await refreshOpenOutputsForItem({
+        supabase,
+        itemId: recording.item_id,
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_BASE_URL,
+        masterTranscript,
+        template,
+      });
+    } catch (outputErr) {
+      console.error("[start-transcription] output refresh", outputErr);
+    }
+
     return NextResponse.json({
       ok: true,
       recordingId,
       status: "transcribed",
-      transcriptPreview: text.slice(0, 280),
+      transcriptPreview: cleanedText.slice(0, 280),
     });
   } catch (e) {
     if (e instanceof OpenAITranscriptionError) {

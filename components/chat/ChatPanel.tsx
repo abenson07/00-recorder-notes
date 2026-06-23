@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { type ChatSource, postProjectChat } from "@/lib/api/chat";
+import { type ChatSource, postItemChat } from "@/lib/api/chat";
 
 type Role = "user" | "assistant";
 
@@ -14,7 +14,15 @@ interface ChatMessage {
   usedTranscriptFallback?: boolean;
 }
 
-export function ChatPanel({ projectId }: { projectId: string }) {
+export function ChatPanel({
+  itemId: itemIdProp,
+  projectId,
+}: {
+  itemId?: string;
+  /** @deprecated Use itemId */
+  projectId?: string;
+}) {
+  const itemId = itemIdProp ?? projectId ?? "";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -39,7 +47,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
 
     try {
       const { reply, sources, grounded, usedTranscriptFallback } =
-        await postProjectChat(projectId, text);
+        await postItemChat(itemId, text);
       setMessages((m) => [
         ...m,
         {
@@ -118,11 +126,11 @@ export function ChatPanel({ projectId }: { projectId: string }) {
       ) : null}
 
       <form onSubmit={onSubmit} className="flex flex-col gap-2">
-        <label className="sr-only" htmlFor={`chat-input-${projectId}`}>
+        <label className="sr-only" htmlFor={`chat-input-${itemId}`}>
           Message
         </label>
         <textarea
-          id={`chat-input-${projectId}`}
+          id={`chat-input-${itemId}`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={sending}
